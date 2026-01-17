@@ -2,16 +2,17 @@ package com.iron.mymarket.service;
 
 import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.repository.ItemRepository;
+import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.util.ItemMapper;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 public class ItemService {
@@ -42,6 +43,19 @@ public class ItemService {
             foundItems = itemRepository.findAll(pageable);
         }
         return foundItems.map(itemMapper::toItemDto);
+    }
+
+    @Transactional
+    public void postItemNumberInCart(Long id, ItemAction action) {
+
+        Item itemById = itemRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Item not found: " + id));
+
+        if (action == ItemAction.PLUS) {
+            itemById.setCount(itemById.getCount() + 1);
+        } else if (action == ItemAction.MINUS && itemById.getCount() > 0) {
+            itemById.setCount(itemById.getCount() - 1);
+        }
     }
 
 
