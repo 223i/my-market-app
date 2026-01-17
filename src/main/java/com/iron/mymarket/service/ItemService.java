@@ -24,7 +24,7 @@ public class ItemService {
         this.itemMapper = itemMapper;
     }
 
-    public List<ItemDto> findItems(String search, ItemSort sort,
+    public Page<ItemDto> findItems(String search, ItemSort sort,
                                    Integer pageNumber, Integer pageSize) {
         Sort springSort = switch (sort) {
             case ALPHA -> Sort.by("title").ascending();
@@ -41,7 +41,7 @@ public class ItemService {
         } else {
             foundItems = itemRepository.findAll(pageable);
         }
-        return foundItems.stream().map(itemMapper::toItemDto).toList();
+        return foundItems.map(itemMapper::toItemDto);
     }
 
 

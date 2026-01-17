@@ -17,4 +17,8 @@ public class ItemDto {
     String imgPath;
     long price;
     int count;
+
+    public static ItemDto stub() {
+        return new ItemDto(-1L, "", "", "", 0L, 0);
+    }
 }
