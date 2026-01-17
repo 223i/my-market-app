@@ -59,4 +59,11 @@ public class ItemService {
     }
 
 
+    public ItemDto getItemById(Long id){
+        Item itemById = itemRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Item not found: " + id));
+        return itemMapper.toItemDto(itemById);
+    }
+
+
 }
