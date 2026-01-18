@@ -45,19 +45,6 @@ public class ItemService {
         return foundItems.map(itemMapper::toItemDto);
     }
 
-    @Transactional
-    public void postItemNumberInCart(Long id, ItemAction action) {
-
-        Item itemById = itemRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Item not found: " + id));
-
-        if (action == ItemAction.PLUS) {
-            itemById.setCount(itemById.getCount() + 1);
-        } else if (action == ItemAction.MINUS && itemById.getCount() > 0) {
-            itemById.setCount(itemById.getCount() - 1);
-        }
-    }
-
 
     public ItemDto getItemById(Long id){
         Item itemById = itemRepository.findById(id)

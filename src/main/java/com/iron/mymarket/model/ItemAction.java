@@ -5,5 +5,6 @@ import lombok.Getter;
 @Getter
 public enum ItemAction {
     PLUS,
-    MINUS
+    MINUS,
+    DELETE
 }

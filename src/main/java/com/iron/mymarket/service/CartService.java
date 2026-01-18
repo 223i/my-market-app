@@ -46,6 +46,7 @@ public class CartService {
         switch (action) {
             case PLUS -> cartStorage.plus(itemId);
             case MINUS -> cartStorage.minus(itemId);
+            case DELETE -> cartStorage.delete(itemId);
         }
     }
 }
