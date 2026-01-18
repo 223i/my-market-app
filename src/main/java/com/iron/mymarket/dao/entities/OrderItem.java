@@ -26,5 +26,8 @@ public class OrderItem {
 
     private long priceAtPurchase;
 
-    private long subtotal;
+    @Transient
+    public long getSubtotal() {
+        return quantity * priceAtPurchase;
+    }
 }

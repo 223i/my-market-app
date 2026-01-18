@@ -28,39 +28,20 @@ INSERT INTO orders (id, total_sum) VALUES (5, 184600);
 
 -- Order #1 Smartphone X1 (1 × 69900) Gaming Mouse (1 × 5900) USB-C Hub (3 × 4900)
 
-INSERT INTO order_items (order_id, item_id, quantity, price)
-VALUES
-(1, 1, 1, 69900),
-(1, 6, 1, 5900),
-(1, 10, 3, 4900);
+INSERT INTO order_items (order_id, item_id, quantity, price_at_purchase) VALUES (1, 1, 1, 69900), (1, 6, 1, 5900), (1, 10, 3, 4900);
 
 -- Order #2 Laptop Pro 15 (1 × 129900) USB-C Hub (1 × 4900) Wireless Headphones (1 × 19900)
 
-INSERT INTO order_items (order_id, item_id, quantity, price)
-VALUES
-(2, 2, 1, 129900),
-(2, 10, 1, 4900),
-(2, 3, 1, 19900);
+INSERT INTO order_items (order_id, item_id, quantity, price_at_purchase) VALUES (2, 2, 1, 129900), (2, 10, 1, 4900), (2, 3, 1, 19900);
 
 -- Order #3 Smart Watch S (1 × 24900)
 
-INSERT INTO order_items (order_id, item_id, quantity, price)
-VALUES
-(3, 4, 1, 24900);
+INSERT INTO order_items (order_id, item_id, quantity, price_at_purchase) VALUES (3, 4, 1, 24900);
 
 -- Order #4 Mechanical Keyboard (2 × 10900) Gaming Mouse (2 × 5900) Bluetooth Speaker (1 × 8900)
 
-INSERT INTO order_items (order_id, item_id, quantity, price)
-VALUES
-(4, 7, 2, 10900),
-(4, 6, 2, 5900),
-(4, 5, 1, 8900);
+INSERT INTO order_items (order_id, item_id, quantity, price_at_purchase) VALUES (4, 7, 2, 10900), (4, 6, 2, 5900), (4, 5, 1, 8900);
 
 -- Order #5 4K Monitor 27 (2 × 45900) External SSD 1TB (1 × 17900) USB-C Hub (1 × 4900) Wireless Headphones (1 × 19900)
 
-INSERT INTO order_items (order_id, item_id, quantity, price)
-VALUES
-(5, 8, 2, 45900),
-(5, 9, 1, 17900),
-(5, 10, 1, 4900),
-(5, 3, 1, 19900);
+INSERT INTO order_items (order_id, item_id, quantity, price_at_purchase) VALUES (5, 8, 2, 45900), (5, 9, 1, 17900), (5, 10, 1, 4900), (5, 3, 1, 19900);
