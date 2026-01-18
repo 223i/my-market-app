@@ -6,6 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -26,7 +27,6 @@ public class OrdersController {
         return "orders";
     }
 
-    //TODO: finalize new order=true case
     @GetMapping("/orders/{id}")
     public String getOrderById(@PathVariable Long id,
                                @RequestParam(required = false,
@@ -36,4 +36,9 @@ public class OrdersController {
         return "order";
     }
 
+    @PostMapping("/buy")
+    public String createNewOrder(){
+        OrderDto order = orderService.createNewOrder();
+        return String.format("redirect:/orders/%d?newOrder=true", order.getId()) ;
+    }
 }

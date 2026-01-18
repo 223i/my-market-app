@@ -4,6 +4,7 @@ import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.model.Paging;
+import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.ItemService;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
@@ -21,9 +22,11 @@ import java.util.List;
 public class ItemsController {
 
     private final ItemService itemService;
+    private final CartService cartService;
 
-    public ItemsController(ItemService itemService) {
+    public ItemsController(ItemService itemService, CartService cartService) {
         this.itemService = itemService;
+        this.cartService = cartService;
     }
 
     @GetMapping({"/", "/items"})
@@ -57,7 +60,7 @@ public class ItemsController {
                                        @RequestParam ItemAction action,
                                        RedirectAttributes redirect) {
 
-        itemService.postItemNumberInCart(id, action);
+        cartService.changeItemCount(id, action);
 
         redirect.addAttribute("search", search);
         redirect.addAttribute("sort", sort);
