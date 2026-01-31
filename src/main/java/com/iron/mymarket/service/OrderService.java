@@ -1,6 +1,5 @@
 package com.iron.mymarket.service;
 
-import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.entities.Order;
 import com.iron.mymarket.dao.entities.OrderItem;
 import com.iron.mymarket.dao.repository.CartStorage;
@@ -8,12 +7,11 @@ import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.dao.repository.OrderRepository;
 import com.iron.mymarket.model.OrderDto;
 import com.iron.mymarket.util.OrderMapper;
-import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -23,27 +21,31 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final ItemRepository itemRepository;
     private final CartStorage cartStorage;
+    private final TransactionalOperator transactionalOperator;
 
     public OrderService(OrderRepository orderRepository, OrderMapper orderMapper,
-                        ItemRepository itemRepository, CartStorage cartStorage) {
+                        ItemRepository itemRepository, CartStorage cartStorage,
+                        TransactionalOperator transactionalOperator) {
         this.orderRepository = orderRepository;
         this.orderMapper = orderMapper;
         this.itemRepository = itemRepository;
         this.cartStorage = cartStorage;
+        this.transactionalOperator = transactionalOperator;
     }
 
-    public List<OrderDto> findOrders() {
-        List<Order> orders = orderRepository.findAll();
-        return orders.stream().map(orderMapper::toOrderDto).toList();
+    public Flux<OrderDto> findOrders() {
+        return orderRepository.findAll()
+                        .map(orderMapper::toOrderDto);
+
     }
 
-    public OrderDto findOrderById(Long id) {
-        Order order = orderRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Order not found: " + id));
-        return orderMapper.toOrderDto(order);
+    public Mono<OrderDto> findOrderById(Long id) {
+        return orderRepository.findById(id)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Order not found:" + id)))
+                .map(orderMapper::toOrderDto);
     }
 
-    @Transactional
-    public OrderDto createNewOrder() {
+    public Mono<OrderDto> createNewOrder() {
         Map<Long, Integer> cartItems = cartStorage.getItems();
 
         if (cartItems.isEmpty()) {
@@ -51,30 +53,33 @@ public class OrderService {
         }
 
         Order order = new Order();
-        List<OrderItem> orderItems = new ArrayList<>();
-        long totalSum = 0;
-
-        for (Map.Entry<Long, Integer> entry : cartItems.entrySet()) {
-            Item item = itemRepository.findById(entry.getKey())
-                    .orElseThrow(() -> new EntityNotFoundException("Item not found: " + entry.getKey()));
-
-            OrderItem orderItem = new OrderItem();
-            orderItem.setItem(item);
-            orderItem.setQuantity(entry.getValue());
-            orderItem.setPriceAtPurchase(item.getPrice());
-            orderItem.setOrder(order);
-
-            orderItems.add(orderItem);
-            totalSum += orderItem.getSubtotal();
-        }
-
-        order.setItems(orderItems);
-        order.setTotalSum(totalSum);
-
-        Order savedOrder = orderRepository.save(order);
-
-        // очистка корзины
-        cartStorage.getItems().clear();
-        return orderMapper.toOrderDto(savedOrder);
+        return Flux.fromIterable(cartItems.entrySet())
+                .flatMap(entry ->
+                        itemRepository.findById(entry.getKey())
+                                .switchIfEmpty(Mono.error(
+                                        new IllegalArgumentException("Item not found: " + entry.getKey())
+                                ))
+                                .map(item -> {
+                                    OrderItem orderItem = new OrderItem();
+                                    orderItem.setItem(item);
+                                    orderItem.setQuantity(entry.getValue());
+                                    orderItem.setPriceAtPurchase(item.getPrice());
+                                    orderItem.setOrder(order);
+                                    return orderItem;
+                                })
+                )
+                .collectList()
+                .flatMap(items -> {
+                    order.setItems(items);
+                    order.setTotalSum(
+                            items.stream()
+                                    .mapToLong(OrderItem::getSubtotal)
+                                    .sum()
+                    );
+                    return orderRepository.save(order);
+                })
+                .map(orderMapper::toOrderDto)
+                .as(transactionalOperator::transactional)
+                .doFinally(signal -> cartStorage.getItems().clear());
     }
 }

@@ -2,17 +2,15 @@ package com.iron.mymarket.service;
 
 import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.repository.ItemRepository;
-import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.util.ItemMapper;
-import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 public class ItemService {
@@ -25,8 +23,11 @@ public class ItemService {
         this.itemMapper = itemMapper;
     }
 
-    public Page<ItemDto> findItems(String search, ItemSort sort,
-                                   Integer pageNumber, Integer pageSize) {
+    public Flux<ItemDto> findItems(String search,
+                                   ItemSort sort,
+                                   int pageNumber,
+                                   int pageSize) {
+
         Sort springSort = switch (sort) {
             case ALPHA -> Sort.by("title").ascending();
             case PRICE -> Sort.by("price").ascending();
@@ -35,22 +36,21 @@ public class ItemService {
 
         Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, springSort);
 
-        Page<Item> foundItems;
+        Flux<Item> foundItems;
         if (!search.isBlank()) {
             foundItems = itemRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(search,
                     search, pageable);
         } else {
-            foundItems = itemRepository.findAll(pageable);
+            foundItems = itemRepository.findAllBy(pageable);
         }
+
         return foundItems.map(itemMapper::toItemDto);
     }
 
 
-    public ItemDto getItemById(Long id){
-        Item itemById = itemRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Item not found: " + id));
-        return itemMapper.toItemDto(itemById);
+    public Mono<ItemDto> getItemById(Long id) {
+        return itemRepository.findById(id)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found: " + id)))
+                .map(itemMapper::toItemDto);
     }
-
-
 }
