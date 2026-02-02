@@ -1,5 +1,7 @@
 package com.iron.mymarket.dao.repository;
 
+import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.annotation.SessionScope;
 
@@ -7,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
-@SessionScope
+@Scope(value = "session", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class CartStorage {
 
     private final Map<Long, Integer> items = new HashMap<>();

@@ -18,19 +18,19 @@ public class OrdersController {
         this.orderService = orderService;
     }
 
-    @GetMapping
+    @GetMapping("/orders")
     public Mono<Rendering> getOrders() {
-        return Mono.just(Rendering.view("/orders")
+        return Mono.just(Rendering.view("orders")
                 .modelAttribute("orders", orderService.findOrders())
                 .build());
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/orders/{id}")
     public Mono<Rendering> getOrderById(@PathVariable Long id,
                                         @RequestParam(required = false,
                                                 value = "newOrder", defaultValue = "false") Boolean newOrder) {
         return orderService.findOrderById(id)
-                .map(order -> Rendering.view("/orders")
+                .map(order -> Rendering.view("orders")
                         .modelAttribute("order", order)
                         .build());
     }

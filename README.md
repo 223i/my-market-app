@@ -70,7 +70,8 @@ my-market-app
 │   │   │       └── util
 │   │   └── resources
 │   │       ├── application.properties
-│   │       ├── import.sql
+│   │       ├── datadata.sql
+│   │       ├── schema.sql
 │   │       ├── static
 │   │       │   └── img
 │   │       │       └── products

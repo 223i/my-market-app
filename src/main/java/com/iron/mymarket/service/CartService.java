@@ -15,38 +15,37 @@ import reactor.core.publisher.Mono;
 public class CartService {
 
     private final ItemRepository itemRepository;
-    private final CartStorage cartStorage;
     private final ItemMapper itemMapper;
 
-    public Mono<ItemDto> getItemView(long itemId) {
+    public Mono<ItemDto> getItemView(long itemId, CartStorage cart) {
         return itemRepository.findById(itemId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
                 .map(itemMapper::toItemDto)
                 .map(itemDto -> {
-                    itemDto.setCount(cartStorage.getCount(itemId));
+                    itemDto.setCount(cart.getCount(itemId));
                     return itemDto;
                 });
     }
 
-    public Flux<ItemDto> getCartItems() {
-        return Flux.fromIterable(cartStorage.getItems().keySet())
-                .flatMap(this::getItemView);
+    public Flux<ItemDto> getCartItems(CartStorage cart) {
+        return Flux.fromIterable(cart.getItems().keySet())
+                .flatMap(itemId -> getItemView(itemId, cart));
     }
 
-    public Mono<Long> getTotal() {
-        return getCartItems()
+    public Mono<Long> getTotal(CartStorage cart) {
+        return getCartItems(cart)
                 .map(item -> item.getPrice() * item.getCount())
                 .reduce(0L, Long::sum);
     }
 
-    public Mono<Void> changeItemCount(Long itemId, ItemAction action) {
+    public Mono<Void> changeItemCount(Long itemId, ItemAction action, CartStorage cart) {
         return itemRepository.findById(itemId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
                 .doOnNext(item -> {
                     switch (action) {
-                        case PLUS -> cartStorage.plus(item.getId());
-                        case MINUS -> cartStorage.minus(item.getId());
-                        case DELETE -> cartStorage.delete(item.getId());
+                        case PLUS -> cart.plus(item.getId());
+                        case MINUS -> cart.minus(item.getId());
+                        case DELETE -> cart.delete(item.getId());
                     }
                 })
                 .then();
