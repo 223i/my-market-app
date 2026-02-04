@@ -14,16 +14,16 @@ public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(ServerWebInputException.class)
-    public Mono<ServerResponse> handleBadRequest(ServerWebInputException ex) {
-        return ServerResponse.badRequest().build();
-    }
+//    @ExceptionHandler(ServerWebInputException.class)
+//    public Mono<ServerResponse> handleBadRequest(ServerWebInputException ex) {
+//        return ServerResponse.badRequest().build();
+//    }
 
-    @ExceptionHandler(Throwable.class)
-    public Mono<ServerResponse> handleOther(Throwable ex) {
-        return ServerResponse
-                .status(500)
-                .contentType(MediaType.TEXT_HTML)
-                .render("error");
-    }
+//    @ExceptionHandler(Throwable.class)
+//    public Mono<ServerResponse> handleOther(Throwable ex) {
+//        return ServerResponse
+//                .status(500)
+//                .contentType(MediaType.TEXT_HTML)
+//                .render("error");
+//    }
 }

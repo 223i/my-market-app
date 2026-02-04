@@ -20,16 +20,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final ItemRepository itemRepository;
-    private final CartStorage cartStorage;
     private final TransactionalOperator transactionalOperator;
 
     public OrderService(OrderRepository orderRepository, OrderMapper orderMapper,
-                        ItemRepository itemRepository, CartStorage cartStorage,
+                        ItemRepository itemRepository,
                         TransactionalOperator transactionalOperator) {
         this.orderRepository = orderRepository;
         this.orderMapper = orderMapper;
         this.itemRepository = itemRepository;
-        this.cartStorage = cartStorage;
         this.transactionalOperator = transactionalOperator;
     }
 
@@ -45,7 +43,7 @@ public class OrderService {
                 .map(orderMapper::toOrderDto);
     }
 
-    public Mono<OrderDto> createNewOrder() {
+    public Mono<OrderDto> createNewOrder(CartStorage cartStorage) {
         Map<Long, Integer> cartItems = cartStorage.getItems();
 
         if (cartItems.isEmpty()) {
@@ -64,13 +62,12 @@ public class OrderService {
                                     orderItem.setItem(item);
                                     orderItem.setQuantity(entry.getValue());
                                     orderItem.setPriceAtPurchase(item.getPrice());
-                                    orderItem.setOrder(order);
+                                    orderItem.setOrderId(order.getId());
                                     return orderItem;
                                 })
                 )
                 .collectList()
                 .flatMap(items -> {
-                    order.setItems(items);
                     order.setTotalSum(
                             items.stream()
                                     .mapToLong(OrderItem::getSubtotal)

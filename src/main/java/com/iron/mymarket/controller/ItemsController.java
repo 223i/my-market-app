@@ -7,18 +7,26 @@ import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.model.Paging;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.ItemService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
+import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Controller
 public class ItemsController {
 
@@ -37,8 +45,10 @@ public class ItemsController {
                                     @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize) {
 
         Flux<ItemDto> items = itemService.findItems(search, sort, pageNumber, pageSize + 1);
+        List<Integer> pageSizes = List.of(2, 5, 10, 20, 50, 100);
 
         return items.collectList()
+                .defaultIfEmpty(Collections.emptyList())
                 .flatMap(itemsDto -> {
                     boolean hasNext = itemsDto.size() > pageSize;
                     List<ItemDto> pageItems = itemsDto.stream().limit(pageSize).toList();
@@ -52,31 +62,31 @@ public class ItemsController {
                                     pageNumber > 1,
                                     hasNext
                             ))
+                            .modelAttribute("pageSizes", pageSizes)
                             .build());
                 });
     }
 
     @PostMapping("/items")
-    public Mono<Rendering> postItemNumberInCart(@RequestParam Long id,
-                                                @RequestParam ItemAction action,
-                                                @RequestParam(value = "search", defaultValue = "", required = false) String search,
-                                                @RequestParam(value = "sort", defaultValue = "NO") ItemSort sort,
-                                                @RequestParam(value = "pageNumber", defaultValue = "1") Integer pageNumber,
-                                                @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
-                                                WebSession session) {
-        session.getAttributes().putIfAbsent("cart", new CartStorage());
-        CartStorage cart = (CartStorage) session.getAttributes().get("cart");
+    public Mono<ServerResponse> postItemNumberInCart(ServerWebExchange exchange, WebSession session) {
+        return exchange.getFormData().flatMap(formData -> {
+            Long id = Long.valueOf(formData.getFirst("id"));
+            ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
 
-        return  cartService.changeItemCount(id, action, cart)
-                .then(Mono.just(
-                        Rendering.redirectTo("/items?" +
-                                        "search=" + search +
-                                        "&sort=" + sort +
-                                        "&pageNumber=" + pageNumber +
-                                        "&pageSize=" + pageSize)
-                                .build()
-                ));
+            log.debug("Контроллер вызван! ID товара: {}, Action: {}", id, action);
+
+            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
+
+            return cartService.changeItemCount(id, action, cart)
+                    .flatMap(updatedCart -> {
+                        session.getAttributes().put("cart", updatedCart);
+                        return session.save();
+                    })
+                    .then(ServerResponse.temporaryRedirect(
+                            getRedirectUri(formData)).build());
+        });
     }
+
 
     @GetMapping("/items/{id}")
     public Mono<Rendering> getItemById(@PathVariable Long id) {
@@ -95,5 +105,15 @@ public class ItemsController {
                     }
                     return row;
                 });
+    }
+    private URI getRedirectUri(MultiValueMap<String, String> formData) {
+        return UriComponentsBuilder
+                .fromPath("/items")
+                .queryParam("search", formData.getFirst("search"))
+                .queryParam("sort", formData.getFirst("sort"))
+                .queryParam("pageNumber", formData.getFirst("pageNumber"))
+                .queryParam("pageSize", formData.getFirst("pageSize"))
+                .build()
+                .toUri();
     }
 }

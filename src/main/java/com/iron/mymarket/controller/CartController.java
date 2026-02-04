@@ -6,8 +6,8 @@ import com.iron.mymarket.service.CartService;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 
@@ -22,8 +22,8 @@ public class CartController {
 
     @GetMapping("/cart/items")
     public Mono<Rendering> getItemsInCart(WebSession session) {
-        session.getAttributes().putIfAbsent("cart", new CartStorage());
-        CartStorage cart = (CartStorage) session.getAttributes().get("cart");
+        CartStorage cart = session.getAttribute("cart");
+
         return Mono.just(Rendering.view("cart")
                 .modelAttribute("items", cartService.getCartItems(cart))
                 .modelAttribute("total", cartService.getTotal(cart))
@@ -31,18 +31,22 @@ public class CartController {
     }
 
     @PostMapping("/cart/items")
-    public Mono<Rendering> changeItemCountOnCartPage(
-            @RequestParam Long id,
-            @RequestParam ItemAction action,
-            WebSession session) {
+    public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
+        return exchange.getFormData().flatMap(formData -> {
+            Long id = Long.valueOf(formData.getFirst("id"));
+            ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
+            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-        session.getAttributes().putIfAbsent("cart", new CartStorage());
-        CartStorage cart = (CartStorage) session.getAttributes().get("cart");
-        return cartService.changeItemCount(id, action, cart)
-                .onErrorComplete()
-                .then(Mono.just(Rendering.view("cart")
-                        .modelAttribute("items", cartService.getCartItems(cart))
-                        .modelAttribute("total", cartService.getTotal(cart))
-                        .build()));
+
+            return cartService.changeItemCount(id, action, cart)
+                    .flatMap(updatedCart -> {
+                        session.getAttributes().put("cart", updatedCart);
+                        return session.save();
+                    })
+                    .then(Mono.just(Rendering.view("cart")
+                            .modelAttribute("items", cartService.getCartItems(cart))
+                            .modelAttribute("total", cartService.getTotal(cart))
+                            .build()));
+        });
     }
 }

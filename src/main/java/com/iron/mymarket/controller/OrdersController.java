@@ -1,14 +1,18 @@
 package com.iron.mymarket.controller;
 
+import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.service.OrderService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Controller
 public class OrdersController {
 
@@ -36,8 +40,15 @@ public class OrdersController {
     }
 
     @PostMapping("/buy")
-    public Mono<String> createNewOrder() {
-        return orderService.createNewOrder()
-                .map(createdOrder -> "redirect:/orders/%d?newOrder=true" + createdOrder.getId());
+    public Mono<Rendering> createNewOrder(WebSession session) {
+        CartStorage cart = session.getAttribute("cart");
+
+        return orderService.createNewOrder(cart)
+                .flatMap(createdOrder -> {
+                    cart.getItems().clear();
+                    return session.save()
+                            .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true")
+                                    .build());
+                });
     }
 }

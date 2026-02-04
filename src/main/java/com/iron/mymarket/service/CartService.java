@@ -38,7 +38,7 @@ public class CartService {
                 .reduce(0L, Long::sum);
     }
 
-    public Mono<Void> changeItemCount(Long itemId, ItemAction action, CartStorage cart) {
+    public Mono<CartStorage> changeItemCount(Long itemId, ItemAction action, CartStorage cart) {
         return itemRepository.findById(itemId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
                 .doOnNext(item -> {
@@ -48,7 +48,7 @@ public class CartService {
                         case DELETE -> cart.delete(item.getId());
                     }
                 })
-                .then();
+                .thenReturn(cart);
     }
 }
 

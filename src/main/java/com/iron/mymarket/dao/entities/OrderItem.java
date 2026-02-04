@@ -14,7 +14,7 @@ public class OrderItem {
 
     @Id
     private Long id;
-    private Order order;
+    private Long orderId;
     private Item item;
     private int quantity;
     private long priceAtPurchase;

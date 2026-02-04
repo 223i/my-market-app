@@ -14,7 +14,6 @@ public class OrderMapper {
     public OrderDto toOrderDto(Order order) {
         OrderDto orderDto = new OrderDto();
         orderDto.setId(order.getId());
-        orderDto.setItems(order.getItems().stream().map(this::fromOrderItemToItemDto).toList());
         orderDto.setTotalSum(order.getTotalSum());
         return orderDto;
     }
