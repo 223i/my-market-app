@@ -24,7 +24,6 @@ CREATE TABLE order_items
     item_id           BIGINT NOT NULL,
     quantity          INT    NOT NULL,
     price_at_purchase BIGINT NOT NULL,
-    subtotal          BIGINT NOT NULL,
 
     CONSTRAINT fk_order_items_order
         FOREIGN KEY (order_id)
