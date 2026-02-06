@@ -11,6 +11,8 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 
+import java.util.Objects;
+
 @Controller
 public class CartController {
 
@@ -33,7 +35,7 @@ public class CartController {
     @PostMapping("/cart/items")
     public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
         return exchange.getFormData().flatMap(formData -> {
-            Long id = Long.valueOf(formData.getFirst("id"));
+            Long id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
             CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 

@@ -34,7 +34,7 @@ public class OrdersController {
                                         @RequestParam(required = false,
                                                 value = "newOrder", defaultValue = "false") Boolean newOrder) {
         return orderService.findOrderById(id)
-                .map(order -> Rendering.view("orders")
+                .map(order -> Rendering.view("order")
                         .modelAttribute("order", order)
                         .build());
     }

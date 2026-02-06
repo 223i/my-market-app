@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.result.view.Rendering;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
@@ -25,6 +24,7 @@ import reactor.core.publisher.Mono;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Controller
@@ -68,13 +68,11 @@ public class ItemsController {
     }
 
     @PostMapping("/items")
-    public Mono<ServerResponse> postItemNumberInCart(ServerWebExchange exchange, WebSession session) {
+    public Mono<Rendering> postItemNumberInCart(ServerWebExchange exchange, WebSession session) {
+
         return exchange.getFormData().flatMap(formData -> {
-            Long id = Long.valueOf(formData.getFirst("id"));
+            Long id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
-
-            log.debug("Контроллер вызван! ID товара: {}, Action: {}", id, action);
-
             CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
             return cartService.changeItemCount(id, action, cart)
@@ -82,8 +80,7 @@ public class ItemsController {
                         session.getAttributes().put("cart", updatedCart);
                         return session.save();
                     })
-                    .then(ServerResponse.temporaryRedirect(
-                            getRedirectUri(formData)).build());
+                    .then(Mono.just(Rendering.redirectTo(getRedirectUri(formData).toString()).build()));
         });
     }
 
@@ -106,6 +103,7 @@ public class ItemsController {
                     return row;
                 });
     }
+
     private URI getRedirectUri(MultiValueMap<String, String> formData) {
         return UriComponentsBuilder
                 .fromPath("/items")
