@@ -1,8 +1,6 @@
 package com.iron.mymarket.util;
 
 import com.iron.mymarket.dao.entities.Order;
-import com.iron.mymarket.dao.entities.OrderItem;
-import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.OrderDto;
 import com.iron.mymarket.model.OrderItemDto;
 import org.springframework.stereotype.Component;
