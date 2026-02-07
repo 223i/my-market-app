@@ -78,7 +78,7 @@ public class OrderService {
         Map<Long, Integer> cartItems = cartStorage.getItems();
 
         if (cartItems.isEmpty()) {
-            throw new IllegalStateException("Cart is empty");
+            return Mono.error(new IllegalStateException("Cart is empty"));
         }
 
         Order order = new Order();
@@ -124,6 +124,6 @@ public class OrderService {
                             });
                 })
                 .as(transactionalOperator::transactional)
-                .doFinally(signal -> cartStorage.getItems().clear());
+                .doOnSuccess(signal -> cartStorage.getItems().clear());
     }
 }

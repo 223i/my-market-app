@@ -3,10 +3,12 @@ package com.iron.mymarket.controller;
 import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.service.CartService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
@@ -35,8 +37,14 @@ public class CartController {
     @PostMapping("/cart/items")
     public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
         return exchange.getFormData().flatMap(formData -> {
-            Long id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
-            ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
+            Long id;
+            ItemAction action;
+            try {
+                id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
+                action = ItemAction.valueOf(formData.getFirst("action"));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid params"));
+            };
             CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
 
