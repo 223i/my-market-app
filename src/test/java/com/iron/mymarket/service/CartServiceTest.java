@@ -6,10 +6,13 @@ import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.util.ItemMapper;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +45,7 @@ public class CartServiceTest {
         cartStorage = mock(CartStorage.class);
         itemMapper = mock(ItemMapper.class);
 
-        cartService = new CartService(itemRepository, cartStorage, itemMapper);
+        cartService = new CartService(itemRepository, itemMapper);
 
         MockitoAnnotations.openMocks(this);
 
@@ -65,20 +68,24 @@ public class CartServiceTest {
 
     @Test
     void getItemView_shouldReturnItemDtoWithCount() {
+        cartStorage = mock(CartStorage.class);
         Item item = new Item();
         item.setId(1L);
         item.setTitle("Test item");
         ItemDto dto = new ItemDto(1L, "Test item", "", "", 100, 0);
 
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
         when(itemMapper.toItemDto(item)).thenReturn(dto);
         when(cartStorage.getCount(1L)).thenReturn(3);
 
-        ItemDto result = cartService.getItemView(1L);
+        Mono<ItemDto> result = cartService.getItemView(1L, cartStorage);
 
-        assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getTitle()).isEqualTo("Test item");
-        assertThat(result.getCount()).isEqualTo(3);
+        StepVerifier.create(result)
+                .expectNextMatches(itemResult -> itemResult.getTitle().equals("Test item")
+                        && itemResult.getId() == 1L
+                        && itemResult.getCount() == 3)
+                .expectComplete()
+                .verify();
 
         verify(itemRepository).findById(1L);
         verify(cartStorage).getCount(1L);
@@ -87,10 +94,10 @@ public class CartServiceTest {
 
     @Test
     void getItemView_shouldThrowException_whenItemNotFound() {
-        when(itemRepository.findById(99L)).thenReturn(Optional.empty());
+        when(itemRepository.findById(99L)).thenReturn(Mono.empty());
 
-        assertThatThrownBy(() -> cartService.getItemView(99L))
-                .isInstanceOf(EntityNotFoundException.class)
+        assertThatThrownBy(() -> cartService.getItemView(99L, cartStorage).block())
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Item not found");
     }
 
@@ -101,15 +108,15 @@ public class CartServiceTest {
         cartItems.put(2L, 1); // 1 шт. item2
 
         when(cartStorage.getItems()).thenReturn(cartItems);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item1));
-        when(itemRepository.findById(2L)).thenReturn(Optional.of(item2));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(item1));
+        when(itemRepository.findById(2L)).thenReturn(Mono.just(item2));
         when(cartStorage.getCount(1L)).thenReturn(2);
         when(cartStorage.getCount(2L)).thenReturn(1);
 
         when(itemMapper.toItemDto(item1)).thenReturn(new ItemDto(1L, "item1", "", "", 100, 2));
         when(itemMapper.toItemDto(item2)).thenReturn(new ItemDto(2L, "item2", "", "", 200, 1));
 
-        List<ItemDto> result = cartService.getCartItems();
+        List<ItemDto> result = cartService.getCartItems(cartStorage).collectList().block();
 
         assertEquals(2, result.size());
         assertEquals(1L, result.get(0).getId());
@@ -129,39 +136,47 @@ public class CartServiceTest {
         cartItems.put(2L, 1); // 1 шт. по 200
 
         when(cartStorage.getItems()).thenReturn(cartItems);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item1));
-        when(itemRepository.findById(2L)).thenReturn(Optional.of(item2));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(item1));
+        when(itemRepository.findById(2L)).thenReturn(Mono.just(item2));
         when(cartStorage.getCount(1L)).thenReturn(2);
         when(cartStorage.getCount(2L)).thenReturn(1);
 
-        when(itemMapper.toItemDto(item1)).thenReturn(new ItemDto(1L, "item1", "", "", 100, 2));
-        when(itemMapper.toItemDto(item2)).thenReturn(new ItemDto(2L, "item2", "", "", 200, 1));
+        when(itemMapper.toItemDto(item1)).thenReturn(
+                new ItemDto(1L, "item1", "", "", 100, 2));
+        when(itemMapper.toItemDto(item2)).thenReturn(
+                new ItemDto(2L, "item2", "", "", 200, 1));
 
-        long total = cartService.getTotal();
+        long total = cartService.getTotal(cartStorage).block();
         // 2*100 + 1*200 = 400
         assertEquals(400, total);
     }
 
     @Test
     void changeItemCount_shouldCallPlusMinusDelete() {
-        when(itemRepository.existsById(1L)).thenReturn(true);
+        Item item = new Item();
+        item.setId(1L);
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
 
-        cartService.changeItemCount(1L, ItemAction.PLUS);
+
+        cartService.changeItemCount(1L, ItemAction.PLUS, cartStorage).block();
+        verify(itemRepository).findById(1L);
         verify(cartStorage).plus(1L);
 
-        cartService.changeItemCount(1L, ItemAction.MINUS);
+
+        cartService.changeItemCount(1L, ItemAction.MINUS, cartStorage).block();
         verify(cartStorage).minus(1L);
 
-        cartService.changeItemCount(1L, ItemAction.DELETE);
+        cartService.changeItemCount(1L, ItemAction.DELETE, cartStorage).block();
         verify(cartStorage).delete(1L);
     }
 
     @Test
     void changeItemCount_shouldThrowException_whenItemNotExists() {
-        when(itemRepository.existsById(99L)).thenReturn(false);
+        when(itemRepository.findById(99L)).thenReturn(Mono.empty());
 
-        assertThatThrownBy(() -> cartService.changeItemCount(99L, ItemAction.PLUS))
-                .isInstanceOf(EntityNotFoundException.class)
+        assertThatThrownBy(() -> cartService.changeItemCount(99L, ItemAction.PLUS, cartStorage).block())
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Item not found");
     }
 }

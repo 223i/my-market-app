@@ -1,16 +1,11 @@
 package com.iron.mymarket.dao.repository;
 
-import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.SessionScope;
-
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-@Component
-@SessionScope
 public class CartStorage {
 
-    private final Map<Long, Integer> items = new HashMap<>();
+    private final Map<Long, Integer> items = new ConcurrentHashMap<>();
 
     public void plus(long itemId) {
         items.merge(itemId, 1, Integer::sum);

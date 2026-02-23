@@ -1,15 +1,19 @@
 package com.iron.mymarket.controller;
 
+import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.model.ItemAction;
-import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.util.Objects;
 
 @Controller
 public class CartController {
@@ -21,23 +25,38 @@ public class CartController {
     }
 
     @GetMapping("/cart/items")
-    public String getItemsInCart(Model model){
-        List<ItemDto> itemsInCart = cartService.getCartItems();
-        model.addAttribute("items", itemsInCart);
-        model.addAttribute("total", cartService.getTotal());
-        return "cart";
+    public Mono<Rendering> getItemsInCart(WebSession session) {
+        CartStorage cart = session.getAttribute("cart");
+
+        return Mono.just(Rendering.view("cart")
+                .modelAttribute("items", cartService.getCartItems(cart))
+                .modelAttribute("total", cartService.getTotal(cart))
+                .build());
     }
 
     @PostMapping("/cart/items")
-    public String changeItemCountOnCartPage(
-            @RequestParam long id,
-            @RequestParam ItemAction action,
-            Model model) {
-        cartService.changeItemCount(id, action);
+    public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
+        return exchange.getFormData().flatMap(formData -> {
+            Long id;
+            ItemAction action;
+            try {
+                id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
+                action = ItemAction.valueOf(formData.getFirst("action"));
+            } catch (IllegalArgumentException | NullPointerException e) {
+                return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid params"));
+            };
+            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-        List<ItemDto> items = cartService.getCartItems();
-        model.addAttribute("items", items);
-        model.addAttribute("total", cartService.getTotal());
-        return "cart";
+
+            return cartService.changeItemCount(id, action, cart)
+                    .flatMap(updatedCart -> {
+                        session.getAttributes().put("cart", updatedCart);
+                        return session.save();
+                    })
+                    .then(Mono.just(Rendering.view("cart")
+                            .modelAttribute("items", cartService.getCartItems(cart))
+                            .modelAttribute("total", cartService.getTotal(cart))
+                            .build()));
+        });
     }
 }

@@ -1,53 +1,54 @@
 package com.iron.mymarket.service;
 
-import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.util.ItemMapper;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
 public class CartService {
 
     private final ItemRepository itemRepository;
-    private final CartStorage cartStorage;
     private final ItemMapper itemMapper;
 
-    public ItemDto getItemView(long itemId) {
-        Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new EntityNotFoundException("Item not found"));
-        ItemDto view = itemMapper.toItemDto(item);
-        view.setCount(cartStorage.getCount(itemId));
-        return view;
+    public Mono<ItemDto> getItemView(long itemId, CartStorage cart) {
+        return itemRepository.findById(itemId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
+                .map(itemMapper::toItemDto)
+                .map(itemDto -> {
+                    itemDto.setCount(cart.getCount(itemId));
+                    return itemDto;
+                });
     }
 
-    public List<ItemDto> getCartItems() {
-        return cartStorage.getItems().keySet().stream()
-                .map(this::getItemView)
-                .toList();
+    public Flux<ItemDto> getCartItems(CartStorage cart) {
+        return Flux.fromIterable(cart.getItems().keySet())
+                .flatMap(itemId -> getItemView(itemId, cart));
     }
 
-    public long getTotal() {
-        return getCartItems().stream()
-                .mapToLong(i -> i.getPrice() * i.getCount())
-                .sum();
+    public Mono<Long> getTotal(CartStorage cart) {
+        return getCartItems(cart)
+                .map(item -> item.getPrice() * item.getCount())
+                .reduce(0L, Long::sum);
     }
 
-    public void changeItemCount(long itemId, ItemAction action) {
-        if (!itemRepository.existsById(itemId)) throw new EntityNotFoundException("Item not found");
-
-        switch (action) {
-            case PLUS -> cartStorage.plus(itemId);
-            case MINUS -> cartStorage.minus(itemId);
-            case DELETE -> cartStorage.delete(itemId);
-        }
+    public Mono<CartStorage> changeItemCount(Long itemId, ItemAction action, CartStorage cart) {
+        return itemRepository.findById(itemId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
+                .doOnNext(item -> {
+                    switch (action) {
+                        case PLUS -> cart.plus(item.getId());
+                        case MINUS -> cart.minus(item.getId());
+                        case DELETE -> cart.delete(item.getId());
+                    }
+                })
+                .thenReturn(cart);
     }
 }
 

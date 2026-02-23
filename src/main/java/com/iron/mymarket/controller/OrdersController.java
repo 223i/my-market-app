@@ -1,16 +1,18 @@
 package com.iron.mymarket.controller;
 
-import com.iron.mymarket.model.OrderDto;
+import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.service.OrderService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.result.view.Rendering;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
-
+@Slf4j
 @Controller
 public class OrdersController {
 
@@ -21,24 +23,32 @@ public class OrdersController {
     }
 
     @GetMapping("/orders")
-    public String getOrders(Model model) {
-        List<OrderDto> orders = orderService.findOrders();
-        model.addAttribute("orders", orders);
-        return "orders";
+    public Mono<Rendering> getOrders() {
+        return Mono.just(Rendering.view("orders")
+                .modelAttribute("orders", orderService.findOrders())
+                .build());
     }
 
     @GetMapping("/orders/{id}")
-    public String getOrderById(@PathVariable Long id,
-                               @RequestParam(required = false,
-                                       value = "newOrder", defaultValue = "false") Boolean newOrder, Model model) {
-        OrderDto order = orderService.findOrderById(id);
-        model.addAttribute("order", order);
-        return "order";
+    public Mono<Rendering> getOrderById(@PathVariable Long id,
+                                        @RequestParam(required = false,
+                                                value = "newOrder", defaultValue = "false") Boolean newOrder) {
+        return orderService.findOrderById(id)
+                .map(order -> Rendering.view("order")
+                        .modelAttribute("order", order)
+                        .build());
     }
 
     @PostMapping("/buy")
-    public String createNewOrder(){
-        OrderDto order = orderService.createNewOrder();
-        return String.format("redirect:/orders/%d?newOrder=true", order.getId()) ;
+    public Mono<Rendering> createNewOrder(WebSession session) {
+        CartStorage cart = session.getAttribute("cart");
+
+        return orderService.createNewOrder(cart)
+                .flatMap(createdOrder -> {
+                    cart.getItems().clear();
+                    return session.save()
+                            .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true")
+                                    .build());
+                });
     }
 }

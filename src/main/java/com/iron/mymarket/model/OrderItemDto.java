@@ -5,15 +5,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.List;
-
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
-public class OrderDto {
+public class OrderItemDto {
+    private ItemDto item;
+    private int quantity;
+    private long priceAtPurchase;
 
-    long id;
-    List<OrderItemDto> items;
-    long totalSum;
+    public long getSubtotal() {
+        return quantity * priceAtPurchase;
+    }
 }

@@ -1,29 +1,21 @@
 package com.iron.mymarket.util;
 
 import com.iron.mymarket.dao.entities.Order;
-import com.iron.mymarket.dao.entities.OrderItem;
-import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.OrderDto;
+import com.iron.mymarket.model.OrderItemDto;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class OrderMapper {
 
-    private ItemMapper itemMapper;
 
-    public OrderDto toOrderDto(Order order) {
+    public OrderDto toOrderDto(Order order, List<OrderItemDto> items) {
         OrderDto orderDto = new OrderDto();
         orderDto.setId(order.getId());
-        orderDto.setItems(order.getItems().stream().map(this::fromOrderItemToItemDto).toList());
         orderDto.setTotalSum(order.getTotalSum());
+        orderDto.setItems(items);
         return orderDto;
-    }
-
-    private ItemDto fromOrderItemToItemDto(OrderItem item){
-        ItemDto itemDto = new ItemDto();
-        itemDto.setTitle(item.getItem().getTitle());
-        itemDto.setPrice(item.getSubtotal());
-        itemDto.setCount(item.getQuantity());
-        return itemDto;
     }
 }
