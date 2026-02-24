@@ -1,7 +1,4 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-
+../../Programming/my-blog-back-app/HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
