@@ -25,16 +25,18 @@ public class OrderService {
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
     private final TransactionalOperator transactionalOperator;
+    private final CacheService cacheService;
 
     public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderMapper orderMapper,
                         ItemRepository itemRepository, ItemMapper itemMapper,
-                        TransactionalOperator transactionalOperator) {
+                        TransactionalOperator transactionalOperator, CacheService cacheService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.itemRepository = itemRepository;
         this.itemMapper = itemMapper;
         this.transactionalOperator = transactionalOperator;
+        this.cacheService = cacheService;
     }
 
     public Flux<OrderDto> findOrders() {
@@ -75,55 +77,69 @@ public class OrderService {
     }
 
     public Mono<OrderDto> createNewOrder(CartStorage cartStorage) {
-        Map<Long, Integer> cartItems = cartStorage.getItems();
+        return validateCart(cartStorage)
+                .flatMap(cartItems -> createOrderItemsFromCart(cartItems).collectList())
+                .flatMap(this::calculateTotalAndSaveOrder)
+                .as(transactionalOperator::transactional)
+                .doOnSuccess(signal -> cartStorage.getItems().clear());
+    }
 
+    private Mono<Map<Long, Integer>> validateCart(CartStorage cartStorage) {
+        Map<Long, Integer> cartItems = cartStorage.getItems();
         if (cartItems.isEmpty()) {
             return Mono.error(new IllegalStateException("Cart is empty"));
         }
+        return Mono.just(cartItems);
+    }
 
-        Order order = new Order();
+    private Flux<OrderItem> createOrderItemsFromCart(Map<Long, Integer> cartItems) {
         return Flux.fromIterable(cartItems.entrySet())
                 .flatMap(entry ->
                         itemRepository.findById(entry.getKey())
                                 .switchIfEmpty(Mono.error(
                                         new IllegalArgumentException("Item not found: " + entry.getKey())
                                 ))
-                                .map(item -> {
-                                    OrderItem orderItem = new OrderItem();
-                                    orderItem.setItemId(item.getId());
-                                    orderItem.setQuantity(entry.getValue());
-                                    orderItem.setPriceAtPurchase(item.getPrice());
-                                    orderItem.setOrderId(order.getId());
-                                    return orderItem;
-                                })
+                                .map(item -> createOrderItem(item, entry.getValue()))
+                );
+    }
+
+    private OrderItem createOrderItem(com.iron.mymarket.dao.entities.Item item, Integer quantity) {
+        OrderItem orderItem = new OrderItem();
+        orderItem.setItemId(item.getId());
+        orderItem.setQuantity(quantity);
+        orderItem.setPriceAtPurchase(item.getPrice());
+        return orderItem;
+    }
+
+    private Mono<OrderDto> calculateTotalAndSaveOrder(java.util.List<OrderItem> orderItems) {
+        Order order = new Order();
+        long totalSum = calculateOrderTotal(orderItems);
+        order.setTotalSum(totalSum);
+
+        return saveOrderWithItems(order, orderItems);
+    }
+
+    private long calculateOrderTotal(java.util.List<OrderItem> orderItems) {
+        return orderItems.stream()
+                .mapToLong(OrderItem::getSubtotal)
+                .sum();
+    }
+
+    private Mono<OrderDto> saveOrderWithItems(Order order, java.util.List<OrderItem> orderItems) {
+        return orderRepository.save(order)
+                .flatMap(savedOrder -> {
+                    orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
+                    return saveOrderItemsAndBuildDto(savedOrder, orderItems);
+                });
+    }
+
+    private Mono<OrderDto> saveOrderItemsAndBuildDto(Order savedOrder, java.util.List<OrderItem> orderItems) {
+        return orderItemRepository.saveAll(orderItems)
+                .flatMap(savedItem ->
+                        itemRepository.findById(savedItem.getItemId())
+                                .map(item -> itemMapper.toOrderItemDto(savedItem, item))
                 )
                 .collectList()
-                .flatMap(items -> {
-                    // считаем сумму
-                    long totalSum = items.stream()
-                            .mapToLong(OrderItem::getSubtotal)
-                            .sum();
-
-                    order.setTotalSum(totalSum);
-
-                    // сохраняем order
-                    return orderRepository.save(order)
-                            .flatMap(savedOrder -> {
-                                // проставляем orderId (если id генерится БД)
-                                items.forEach(i -> i.setOrderId(savedOrder.getId()));
-
-                                return orderItemRepository.saveAll(items)
-                                        .flatMap(savedItem ->
-                                                itemRepository.findById(savedItem.getItemId())
-                                                        .map(item ->
-                                                                itemMapper.toOrderItemDto(savedItem, item)
-                                                        )
-                                        ).collectList()
-                                        .map(orderItemDtos ->
-                                                orderMapper.toOrderDto(savedOrder, orderItemDtos));
-                            });
-                })
-                .as(transactionalOperator::transactional)
-                .doOnSuccess(signal -> cartStorage.getItems().clear());
+                .map(orderItemDtos -> orderMapper.toOrderDto(savedOrder, orderItemDtos));
     }
 }
