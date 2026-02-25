@@ -41,19 +41,7 @@ public class OrderService {
 
     public Flux<OrderDto> findOrders() {
         return orderRepository.findAll()
-                .flatMap(order ->
-                        orderItemRepository.findAllByOrderId(order.getId())
-                                .flatMap(orderItem ->
-                                        itemRepository.findById(orderItem.getItemId())
-                                                .map(item ->
-                                                        itemMapper.toOrderItemDto(orderItem, item)
-                                                )
-                                )
-                                .collectList()
-                                .map(orderItemDtos ->
-                                        orderMapper.toOrderDto(order, orderItemDtos)
-                                )
-                );
+                .flatMap(this::buildOrderDtoWithItems);
     }
 
     public Mono<OrderDto> findOrderById(Long id) {
@@ -61,19 +49,7 @@ public class OrderService {
                 .switchIfEmpty(Mono.error(
                         new IllegalArgumentException("Order not found: " + id)
                 ))
-                .flatMap(order ->
-                        orderItemRepository.findAllByOrderId(order.getId())
-                                .flatMap(orderItem ->
-                                        itemRepository.findById(orderItem.getItemId())
-                                                .map(item ->
-                                                        itemMapper.toOrderItemDto(orderItem, item)
-                                                )
-                                )
-                                .collectList()
-                                .map(orderItemDtos ->
-                                        orderMapper.toOrderDto(order, orderItemDtos)
-                                )
-                );
+                .flatMap(this::buildOrderDtoWithItems);
     }
 
     public Mono<OrderDto> createNewOrder(CartStorage cartStorage) {
@@ -82,6 +58,22 @@ public class OrderService {
                 .flatMap(this::calculateTotalAndSaveOrder)
                 .as(transactionalOperator::transactional)
                 .doOnSuccess(signal -> cartStorage.getItems().clear());
+    }
+
+    private Mono<OrderDto> buildOrderDtoWithItems(Order order) {
+        return fetchOrderItemsWithDetails(order.getId())
+                .map(orderItemDtos -> orderMapper.toOrderDto(order, orderItemDtos));
+    }
+
+    private Mono<java.util.List<com.iron.mymarket.model.OrderItemDto>> fetchOrderItemsWithDetails(Long orderId) {
+        return orderItemRepository.findAllByOrderId(orderId)
+                .flatMap(this::buildOrderItemDtoWithItemDetails)
+                .collectList();
+    }
+
+    private Mono<com.iron.mymarket.model.OrderItemDto> buildOrderItemDtoWithItemDetails(OrderItem orderItem) {
+        return itemRepository.findById(orderItem.getItemId())
+                .map(item -> itemMapper.toOrderItemDto(orderItem, item));
     }
 
     private Mono<Map<Long, Integer>> validateCart(CartStorage cartStorage) {
