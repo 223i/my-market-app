@@ -5,7 +5,6 @@ import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.util.ItemMapper;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,7 +21,7 @@ public class ItemService {
     private final ItemMapper itemMapper;
     private final CacheService cacheService;
 
-    private static final Duration CACHE_TTL = Duration.ofMinutes(30);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
 
     public ItemService(ItemRepository itemRepository, ItemMapper itemMapper, CacheService cacheService) {
@@ -53,9 +52,16 @@ public class ItemService {
 
 
     public Mono<ItemDto> getItemById(Long id) {
-        return itemRepository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found: " + id)))
-                .map(itemMapper::toItemDto);
+        String cacheKey = String.format("item:id:%d", id);
+
+        return cacheService.get(cacheKey)
+                .cast(ItemDto.class)
+                .flatMap(Mono::just)
+                .switchIfEmpty(itemRepository.findById(id)
+                        .flatMap(item -> cacheService.setWithExpiration(cacheKey, item, CACHE_TTL)
+                                .thenReturn(item))
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found: " + id)))
+                        .map(itemMapper::toItemDto));
     }
 
     private Flux<ItemDto> fetchItemsFromDatabase(String search, ItemSort sort, int pageNumber, int pageSize) {
