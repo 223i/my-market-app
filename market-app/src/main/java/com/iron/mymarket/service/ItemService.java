@@ -13,6 +13,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 
 @Service
 public class ItemService {
@@ -39,8 +40,11 @@ public class ItemService {
                 search, sort, pageNumber, pageSize);
 
         return cacheService.get(cacheKey)
-                .cast(ItemDto[].class)
-                .flatMapMany(Flux::fromArray)
+                .map(obj -> {
+                    List<ItemDto> list = (List<ItemDto>) obj;
+                    return list;
+                })
+                .flatMapMany(Flux::fromIterable)
                 .switchIfEmpty(
                         fetchItemsFromDatabase(search, sort, pageNumber, pageSize)
                                 .collectList()
@@ -58,10 +62,10 @@ public class ItemService {
                 .cast(ItemDto.class)
                 .flatMap(Mono::just)
                 .switchIfEmpty(itemRepository.findById(id)
-                        .flatMap(item -> cacheService.setWithExpiration(cacheKey, item, CACHE_TTL)
-                                .thenReturn(item))
-                        .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found: " + id)))
-                        .map(itemMapper::toItemDto));
+                        .map(itemMapper::toItemDto)
+                        .flatMap(dto -> cacheService.setWithExpiration(cacheKey, dto, CACHE_TTL)
+                                .thenReturn(dto))
+                        .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found: " + id))));
     }
 
     private Flux<ItemDto> fetchItemsFromDatabase(String search, ItemSort sort, int pageNumber, int pageSize) {
