@@ -44,6 +44,8 @@ public class ItemsController {
                                     @RequestParam(value = "pageNumber", defaultValue = "1") Integer pageNumber,
                                     @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize) {
 
+
+
         Flux<ItemDto> items = itemService.findItems(search, sort, pageNumber, pageSize + 1);
         List<Integer> pageSizes = List.of(2, 5, 10, 20, 50, 100);
 
