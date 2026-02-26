@@ -4,6 +4,7 @@ package com.iron.mymarket.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -71,5 +72,15 @@ public class CacheService {
 
     public Mono<String> generateKey(String prefix, String... parts) {
         return Mono.just(String.join(":", parts.length > 0 ? parts : new String[]{prefix}));
+    }
+
+
+    public Mono<Long> deleteByPattern(String pattern) {
+        return reactiveRedisTemplate.scan(
+                ScanOptions.scanOptions()
+                        .match(pattern)
+                        .build()
+        ).flatMap(this::delete)
+                .count();
     }
 }

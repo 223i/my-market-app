@@ -10,20 +10,35 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 @Service
 @RequiredArgsConstructor
 public class CartService {
 
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
+    private final CacheService cacheService;
+
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
     public Mono<ItemDto> getItemView(long itemId, CartStorage cart) {
-        return itemRepository.findById(itemId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
-                .map(itemMapper::toItemDto)
+        String cacheKey = "items:" + itemId;
+
+        return cacheService.get(cacheKey)
+                .cast(ItemDto.class)
+                .switchIfEmpty(
+                        itemRepository.findById(itemId)
+                                .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
+                                .map(itemMapper::toItemDto)
+                                .flatMap(dto -> cacheService.setWithExpiration(cacheKey, dto, CACHE_TTL)
+                                        .thenReturn(dto)
+                                )
+                )
                 .map(itemDto -> {
-                    itemDto.setCount(cart.getCount(itemId));
-                    return itemDto;
+                    ItemDto view = itemDto.toBuilder().build();
+                    view.setCount(cart.getCount(itemId));
+                    return view;
                 });
     }
 
@@ -41,14 +56,16 @@ public class CartService {
     public Mono<CartStorage> changeItemCount(Long itemId, ItemAction action, CartStorage cart) {
         return itemRepository.findById(itemId)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Item not found:" + itemId)))
-                .doOnNext(item -> {
+                .flatMap(item -> {
                     switch (action) {
                         case PLUS -> cart.plus(item.getId());
                         case MINUS -> cart.minus(item.getId());
                         case DELETE -> cart.delete(item.getId());
                     }
-                })
-                .thenReturn(cart);
+                    return cacheService.delete("items:" + itemId)
+                            .thenReturn(cart);
+                });
     }
+
 }
 

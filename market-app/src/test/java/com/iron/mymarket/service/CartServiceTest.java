@@ -8,19 +8,14 @@ import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.util.ItemMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -30,6 +25,7 @@ public class CartServiceTest {
     private ItemRepository itemRepository;
     private CartStorage cartStorage;
     private ItemMapper itemMapper;
+    private CacheService cacheService;
 
     private CartService cartService;
 
@@ -45,7 +41,7 @@ public class CartServiceTest {
         cartStorage = mock(CartStorage.class);
         itemMapper = mock(ItemMapper.class);
 
-        cartService = new CartService(itemRepository, itemMapper);
+        cartService = new CartService(itemRepository, itemMapper, cacheService);
 
         MockitoAnnotations.openMocks(this);
 
