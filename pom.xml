@@ -24,6 +24,7 @@
     <modules>
         <module>market-app</module>
         <module>payment-service</module>
+        <module>payment-api</module>
     </modules>
     <scm>
         <connection/>

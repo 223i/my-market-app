@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8081
+
+paths:
+  /payments/{userId}/balance:
+    get:
+      operationId: getUserBalance
+      summary: Get user balance
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Balance response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+
+  /payments:
+    post:
+      operationId: performPayment
+      summary: Perform payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        balance:
+          type: number
+          format: double
+        currency:
+          type: string
+
+    PaymentRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        amount:
+          type: number
+          format: double
+
+    PaymentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        remainingBalance:
+          type: number
+          format: double
