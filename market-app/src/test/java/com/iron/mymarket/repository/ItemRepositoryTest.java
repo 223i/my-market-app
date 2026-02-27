@@ -11,8 +11,6 @@ import org.springframework.data.domain.Sort;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 @DataR2dbcTest
 class ItemRepositoryTest {
 

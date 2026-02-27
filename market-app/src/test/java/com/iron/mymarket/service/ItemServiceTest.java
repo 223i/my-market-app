@@ -65,9 +65,7 @@ public class ItemServiceTest {
         when(itemRepository.findById(1L)).thenReturn(Mono.empty());
         when(cacheService.get("item:id:1")).thenReturn(Mono.empty());
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            itemService.getItemById(1L).block();
-        });
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> itemService.getItemById(1L).block());
 
         assertTrue(ex.getMessage().contains("Item not found"));
         verify(itemRepository, times(1)).findById(1L);
@@ -126,8 +124,9 @@ public class ItemServiceTest {
 
         List<ItemDto> result = itemService.findItems(search, ItemSort.NO, 1, 5).collectList().block();
 
+        assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("Ball", result.get(0).getTitle());
+        assertEquals("Ball", result.getFirst().getTitle());
 
         verify(itemRepository, times(1))
                 .findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(search, search,

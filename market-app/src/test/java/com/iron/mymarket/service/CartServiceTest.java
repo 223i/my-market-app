@@ -6,6 +6,7 @@ import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.util.ItemMapper;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockitoAnnotations;
@@ -113,14 +114,15 @@ public class CartServiceTest {
         when(itemRepository.findById(2L)).thenReturn(Mono.just(item2));
         when(cartStorage.getCount(1L)).thenReturn(2);
         when(cartStorage.getCount(2L)).thenReturn(1);
-        when(cacheService.get("items:" + 1)).thenReturn(Mono.just((Object) itemDto1));
-        when(cacheService.get("items:" + 2)).thenReturn(Mono.just((Object) itemDto2));
+        when(cacheService.get("items:" + 1)).thenReturn(Mono.just(itemDto1));
+        when(cacheService.get("items:" + 2)).thenReturn(Mono.just(itemDto2));
 
         when(itemMapper.toItemDto(item1)).thenReturn(new ItemDto(1L, "item1", "", "", 100, 2));
         when(itemMapper.toItemDto(item2)).thenReturn(new ItemDto(2L, "item2", "", "", 200, 1));
 
         List<ItemDto> result = cartService.getCartItems(cartStorage).collectList().block();
 
+        Assertions.assertNotNull(result);
         assertEquals(2, result.size());
         assertEquals(1L, result.get(0).getId());
         assertEquals(2, result.get(0).getCount());

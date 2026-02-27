@@ -1,8 +1,11 @@
 package com.iron.mymarket.dao.repository;
 
+import lombok.Getter;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Getter
 public class CartStorage {
 
     private final Map<Long, Integer> items = new ConcurrentHashMap<>();
@@ -25,7 +28,4 @@ public class CartStorage {
         return items.getOrDefault(itemId, 0);
     }
 
-    public Map<Long, Integer> getItems() {
-        return items;
-    }
 }

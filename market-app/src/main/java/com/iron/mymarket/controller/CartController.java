@@ -29,7 +29,7 @@ public class CartController {
         CartStorage cart = session.getAttribute("cart");
 
         return Mono.just(Rendering.view("cart")
-                .modelAttribute("items", cartService.getCartItems(cart))
+                .modelAttribute("items", cartService.getCartItems(Objects.requireNonNull(cart)))
                 .modelAttribute("total", cartService.getTotal(cart))
                 .build());
     }
@@ -37,14 +37,14 @@ public class CartController {
     @PostMapping("/cart/items")
     public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
         return exchange.getFormData().flatMap(formData -> {
-            Long id;
+            long id;
             ItemAction action;
             try {
-                id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
+                id = Long.parseLong(Objects.requireNonNull(formData.getFirst("id")));
                 action = ItemAction.valueOf(formData.getFirst("action"));
             } catch (IllegalArgumentException | NullPointerException e) {
                 return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid params"));
-            };
+            }
             CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
 

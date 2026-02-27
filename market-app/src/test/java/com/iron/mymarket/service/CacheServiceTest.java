@@ -13,8 +13,6 @@ import reactor.test.StepVerifier;
 import java.time.Duration;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 @SpringBootTest
 @ActiveProfiles("test")
 class CacheServiceTest {
@@ -265,8 +263,8 @@ class CacheServiceTest {
                     if (obj instanceof TestObject) {
                         TestObject retrieved = (TestObject) obj;
                         return retrieved.getName().equals(testObject.getName()) &&
-                               retrieved.getValue() == testObject.getValue() &&
-                               retrieved.getItems().equals(testObject.getItems());
+                                retrieved.getValue() == testObject.getValue() &&
+                                retrieved.getItems().equals(testObject.getItems());
                     }
                     return false;
                 })
@@ -280,7 +278,8 @@ class CacheServiceTest {
         private int value;
         private List<String> items;
 
-        public TestObject() {}
+        public TestObject() {
+        }
 
         public TestObject(String name, int value, List<String> items) {
             this.name = name;
@@ -288,14 +287,29 @@ class CacheServiceTest {
             this.items = items;
         }
 
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
+        public String getName() {
+            return name;
+        }
 
-        public int getValue() { return value; }
-        public void setValue(int value) { this.value = value; }
+        public void setName(String name) {
+            this.name = name;
+        }
 
-        public List<String> getItems() { return items; }
-        public void setItems(List<String> items) { this.items = items; }
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+
+        public List<String> getItems() {
+            return items;
+        }
+
+        public void setItems(List<String> items) {
+            this.items = items;
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -303,8 +317,8 @@ class CacheServiceTest {
             if (o == null || getClass() != o.getClass()) return false;
             TestObject that = (TestObject) o;
             return value == that.value &&
-                   java.util.Objects.equals(name, that.name) &&
-                   java.util.Objects.equals(items, that.items);
+                    java.util.Objects.equals(name, that.name) &&
+                    java.util.Objects.equals(items, that.items);
         }
 
         @Override
