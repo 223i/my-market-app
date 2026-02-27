@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,6 +28,9 @@ public class ItemServiceTest {
 
     @Mock
     private ItemMapper itemMapper;
+
+    @Mock
+    private CacheService cacheService;
 
     @InjectMocks
     private ItemService itemService;
@@ -44,6 +48,8 @@ public class ItemServiceTest {
         dto.setId(1L);
 
         when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
+        when(cacheService.get("item:id:1")).thenReturn(Mono.empty());
+        when(cacheService.setWithExpiration("item:id:1", dto, Duration.ofMinutes(5))).thenReturn(Mono.just(true));
         when(itemMapper.toItemDto(item)).thenReturn(dto);
 
         ItemDto result = itemService.getItemById(1L).block();
@@ -57,6 +63,7 @@ public class ItemServiceTest {
     @Test
     void getItemById_nonExistingItem_shouldThrowException() {
         when(itemRepository.findById(1L)).thenReturn(Mono.empty());
+        when(cacheService.get("item:id:1")).thenReturn(Mono.empty());
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             itemService.getItemById(1L).block();
@@ -80,9 +87,15 @@ public class ItemServiceTest {
 
         Flux<Item> itemsFlux = Flux.just(item1, item2);
 
+        ItemDto dto1 = new ItemDto(1L, "A", "", "", 100, 0);
+        ItemDto dto2 = new ItemDto(2L, "B", "", "", 200, 0);
+
         when(itemRepository.findAllBy(PageRequest.of(0, 5, Sort.unsorted()))).thenReturn(itemsFlux);
-        when(itemMapper.toItemDto(item1)).thenReturn(new ItemDto(1L, "A", "", "", 100, 0));
-        when(itemMapper.toItemDto(item2)).thenReturn(new ItemDto(2L, "B", "", "", 200, 0));
+        when(itemMapper.toItemDto(item1)).thenReturn(dto1);
+        when(itemMapper.toItemDto(item2)).thenReturn(dto2);
+        when(cacheService.get(anyString())).thenReturn(Mono.empty());
+        when(cacheService.setWithExpiration("items:search::sort:NO:page:1:size:5", List.of(dto1, dto2),
+                Duration.ofMinutes(5))).thenReturn(Mono.just(true));
 
         List<ItemDto> result = itemService.findItems("", ItemSort.NO, 1, 5).collectList().block();
 
@@ -102,9 +115,14 @@ public class ItemServiceTest {
         item.setDescription("Round");
         Flux<Item> page = Flux.just(item);
 
+        ItemDto dto = new ItemDto(1L, "Ball", "Round", "", 100, 0);
+
         when(itemRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
                 search, search, PageRequest.of(0, 5, Sort.unsorted()))).thenReturn(page);
-        when(itemMapper.toItemDto(item)).thenReturn(new ItemDto(1L, "Ball", "Round", "", 100, 0));
+        when(itemMapper.toItemDto(item)).thenReturn(dto);
+        when(cacheService.get(anyString())).thenReturn(Mono.empty());
+        when(cacheService.setWithExpiration("items:search:"+ search + ":sort:NO:page:1:size:5", List.of(dto),
+                Duration.ofMinutes(5))).thenReturn(Mono.just(true));
 
         List<ItemDto> result = itemService.findItems(search, ItemSort.NO, 1, 5).collectList().block();
 

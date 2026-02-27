@@ -25,18 +25,16 @@ public class OrderService {
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
     private final TransactionalOperator transactionalOperator;
-    private final CacheService cacheService;
 
     public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderMapper orderMapper,
                         ItemRepository itemRepository, ItemMapper itemMapper,
-                        TransactionalOperator transactionalOperator, CacheService cacheService) {
+                        TransactionalOperator transactionalOperator) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.itemRepository = itemRepository;
         this.itemMapper = itemMapper;
         this.transactionalOperator = transactionalOperator;
-        this.cacheService = cacheService;
     }
 
     public Flux<OrderDto> findOrders() {
@@ -57,7 +55,10 @@ public class OrderService {
                 .flatMap(cartItems -> createOrderItemsFromCart(cartItems).collectList())
                 .flatMap(this::calculateTotalAndSaveOrder)
                 .as(transactionalOperator::transactional)
-                .doOnSuccess(signal -> cartStorage.getItems().clear());
+                .flatMap(dto -> {
+                    cartStorage.getItems().clear();
+                    return Mono.just(dto);
+                });
     }
 
     private Mono<OrderDto> buildOrderDtoWithItems(Order order) {

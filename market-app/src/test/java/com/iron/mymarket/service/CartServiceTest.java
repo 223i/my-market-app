@@ -12,6 +12,7 @@ import org.mockito.MockitoAnnotations;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ public class CartServiceTest {
         itemRepository = mock(ItemRepository.class);
         cartStorage = mock(CartStorage.class);
         itemMapper = mock(ItemMapper.class);
+        cacheService = mock(CacheService.class);
 
         cartService = new CartService(itemRepository, itemMapper, cacheService);
 
@@ -71,6 +73,8 @@ public class CartServiceTest {
         ItemDto dto = new ItemDto(1L, "Test item", "", "", 100, 0);
 
         when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
+        when(cacheService.get("items:1")).thenReturn(Mono.empty());
+        when(cacheService.setWithExpiration("items:1", dto,  Duration.ofMinutes(5))).thenReturn(Mono.just(true));
         when(itemMapper.toItemDto(item)).thenReturn(dto);
         when(cartStorage.getCount(1L)).thenReturn(3);
 
@@ -91,6 +95,7 @@ public class CartServiceTest {
     @Test
     void getItemView_shouldThrowException_whenItemNotFound() {
         when(itemRepository.findById(99L)).thenReturn(Mono.empty());
+        when(cacheService.get("items:" + 99L)).thenReturn(Mono.empty());
 
         assertThatThrownBy(() -> cartService.getItemView(99L, cartStorage).block())
                 .isInstanceOf(IllegalArgumentException.class)
@@ -108,6 +113,8 @@ public class CartServiceTest {
         when(itemRepository.findById(2L)).thenReturn(Mono.just(item2));
         when(cartStorage.getCount(1L)).thenReturn(2);
         when(cartStorage.getCount(2L)).thenReturn(1);
+        when(cacheService.get("items:" + 1)).thenReturn(Mono.just((Object) itemDto1));
+        when(cacheService.get("items:" + 2)).thenReturn(Mono.just((Object) itemDto2));
 
         when(itemMapper.toItemDto(item1)).thenReturn(new ItemDto(1L, "item1", "", "", 100, 2));
         when(itemMapper.toItemDto(item2)).thenReturn(new ItemDto(2L, "item2", "", "", 200, 1));
@@ -139,8 +146,12 @@ public class CartServiceTest {
 
         when(itemMapper.toItemDto(item1)).thenReturn(
                 new ItemDto(1L, "item1", "", "", 100, 2));
+        when(cacheService.get("items:1")).thenReturn(Mono.just(
+                new ItemDto(1L, "item1", "", "", 100, 2)));
         when(itemMapper.toItemDto(item2)).thenReturn(
                 new ItemDto(2L, "item2", "", "", 200, 1));
+        when(cacheService.get("items:2")).thenReturn(Mono.just(
+                new ItemDto(2L, "item2", "", "", 200, 1)));
 
         long total = cartService.getTotal(cartStorage).block();
         // 2*100 + 1*200 = 400
@@ -153,6 +164,7 @@ public class CartServiceTest {
         item.setId(1L);
         when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
         when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
+        when(cacheService.delete("items:1")).thenReturn(Mono.just(true));
 
 
         cartService.changeItemCount(1L, ItemAction.PLUS, cartStorage).block();
