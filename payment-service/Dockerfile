@@ -1,21 +1,25 @@
-FROM maven:3.9.3-eclipse-temurin-21 AS build
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
 COPY pom.xml .
+COPY market-app/pom.xml ./market-app/
+COPY payment-service/pom.xml ./payment-service/
+COPY payment-api/pom.xml ./payment-api/
 RUN mvn dependency:go-offline
 
-COPY src ./src
+COPY market-app/src ./market-app/src
+COPY payment-service/src ./payment-service/src
+COPY payment-api/src ./payment-api/src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jdk-jammy
+FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
-# Создаем директорию для логов
 RUN mkdir -p /app/logs
 
-COPY --from=build /app/target/payment-service-*.jar app.jar
+COPY --from=build /app/payment-service/target/payment-service-*.jar app.jar
 
 EXPOSE 8081
 

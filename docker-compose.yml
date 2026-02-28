@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   # База данных для market-app
   market-db:
-    image: h2:2.2
+    image: oscarfonts/h2:2.2.224
     container_name: market-db
     ports:
       - "9092:9092"
@@ -13,7 +11,7 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - market-data:/data
-    command: ["java", "-cp", "/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
 
   # Redis для market-app
   market-redis:
@@ -28,8 +26,8 @@ services:
   # Основное приложение
   market-app:
     build:
-      context: ./market-app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: market-app/Dockerfile
     container_name: market-app
     ports:
       - "8080:8080"
@@ -50,7 +48,7 @@ services:
 
   # База данных для payment-service
   payment-db:
-    image: h2:2.2
+    image: oscarfonts/h2:2.2.224
     container_name: payment-db
     ports:
       - "9093:9092"
@@ -60,13 +58,13 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - payment-data:/data
-    command: ["java", "-cp", "/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
 
   # Сервис платежей
   payment-service:
     build:
-      context: ./payment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: payment-service/Dockerfile
     container_name: payment-service
     ports:
       - "8081:8081"
