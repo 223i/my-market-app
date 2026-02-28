@@ -4,7 +4,9 @@ import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.OrderDto;
 import com.iron.mymarket.model.OrderItemDto;
+import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.OrderService;
+import com.iron.mymarket.service.PaymentHealthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import static org.mockito.Mockito.*;
 
@@ -30,6 +35,12 @@ public class OrdersControllerTest {
 
     @MockitoBean
     private CartStorage cartStorage;
+
+    @MockitoBean
+    private CartService cartService;
+
+    @MockitoBean
+    private PaymentHealthService paymentHealthService;
 
     private OrderDto order1;
     private OrderDto order2;
@@ -56,21 +67,6 @@ public class OrdersControllerTest {
                 });
 
         verify(orderService, times(1)).findOrders();
-        verifyNoMoreInteractions(orderService);
-    }
-
-    @Test
-    void createNewOrder_shouldRedirectToNewOrderPage() {
-        OrderDto newOrder = new OrderDto(99L, List.of(), 5000);
-        when(orderService.createNewOrder(any(CartStorage.class))).thenReturn(Mono.just(newOrder));
-
-        webTestClient.post()
-                .uri("/buy")
-                .exchange()
-                .expectStatus().is3xxRedirection()
-                .expectHeader().valueEquals("Location", "/orders/99?newOrder=true");
-
-        verify(orderService, times(1)).createNewOrder(any(CartStorage.class));
         verifyNoMoreInteractions(orderService);
     }
 

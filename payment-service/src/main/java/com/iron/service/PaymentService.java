@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PaymentService {
 
     private final AtomicReference<BigDecimal> balance =
-            new AtomicReference<>(new BigDecimal("1000.00"));
+            new AtomicReference<>(new BigDecimal("1000000.00"));
 
     public Mono<BigDecimal> getBalance() {
         return Mono.just(balance.get());
