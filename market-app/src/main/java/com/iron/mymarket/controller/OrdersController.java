@@ -41,14 +41,15 @@ public class OrdersController {
 
     @PostMapping("/buy")
     public Mono<Rendering> createNewOrder(WebSession session) {
-        CartStorage cart = session.getAttribute("cart");
 
-        return orderService.createNewOrder(cart)
-                .flatMap(createdOrder -> {
-                    cart.getItems().clear();
-                    return session.save()
-                            .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true")
-                                    .build());
-                });
+        CartStorage cart = session.getAttribute("cart");
+        if (cart == null || cart.getItems().isEmpty()) {
+            return Mono.just(Rendering.view("cart").modelAttribute("error", "Cart is empty").build());
+        }
+
+        return orderService.createNewOrderWithPayment(cart)
+                .flatMap(createdOrder -> session.save()
+                        .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true").build()))
+                .onErrorResume(e -> Mono.just(Rendering.view("cart").modelAttribute("error", e.getMessage()).build()));
     }
 }

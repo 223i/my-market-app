@@ -7,6 +7,7 @@ import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.dao.repository.OrderItemRepository;
 import com.iron.mymarket.dao.repository.OrderRepository;
 import com.iron.mymarket.model.OrderDto;
+import com.iron.mymarket.model.OrderItemDto;
 import com.iron.mymarket.util.ItemMapper;
 import com.iron.mymarket.util.OrderMapper;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,9 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
+
 
 @Service
 public class OrderService {
@@ -25,16 +28,18 @@ public class OrderService {
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
     private final TransactionalOperator transactionalOperator;
+    private final PaymentClientService paymentClientService;
 
     public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderMapper orderMapper,
                         ItemRepository itemRepository, ItemMapper itemMapper,
-                        TransactionalOperator transactionalOperator) {
+                        TransactionalOperator transactionalOperator, PaymentClientService paymentClientService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.itemRepository = itemRepository;
         this.itemMapper = itemMapper;
         this.transactionalOperator = transactionalOperator;
+        this.paymentClientService = paymentClientService;
     }
 
     public Flux<OrderDto> findOrders() {
@@ -50,7 +55,36 @@ public class OrderService {
                 .flatMap(this::buildOrderDtoWithItems);
     }
 
+    public Mono<OrderDto> createNewOrderWithPayment(CartStorage cartStorage) {
+        return validateCart(cartStorage)
+                .flatMap(cartItems -> createOrderItemsFromCart(cartItems).collectList())
+                .flatMap(items -> {
+                    long total = calculateOrderTotal(items);
+
+                    // 1. Проверяем баланс ДО транзакции (внешний вызов)
+                    return paymentClientService.getBalance()
+                            .flatMap(balance -> {
+                                if (balance < total) {
+                                    return Mono.error(new RuntimeException("Insufficient funds"));
+                                }
+
+                                // 2. Выполняем БД-операции внутри транзакции
+                                return transactionalOperator.execute(status ->
+                                        calculateTotalAndSaveOrder(items)
+                                ).next(); // Flux -> Mono
+                            })
+                            // 3. После успешного сохранения в БД вызываем сервис оплаты
+                            .flatMap(orderDto ->
+                                    paymentClientService.pay((double) total)
+                                            .thenReturn(orderDto)
+                            );
+                })
+                // Очищаем корзину только после успешного завершения всей цепочки
+                .doOnNext(dto -> cartStorage.getItems().clear());
+    }
+
     public Mono<OrderDto> createNewOrder(CartStorage cartStorage) {
+
         return validateCart(cartStorage)
                 .flatMap(cartItems -> createOrderItemsFromCart(cartItems).collectList())
                 .flatMap(this::calculateTotalAndSaveOrder)
@@ -66,7 +100,7 @@ public class OrderService {
                 .map(orderItemDtos -> orderMapper.toOrderDto(order, orderItemDtos));
     }
 
-    private Mono<java.util.List<com.iron.mymarket.model.OrderItemDto>> fetchOrderItemsWithDetails(Long orderId) {
+    private Mono<List<OrderItemDto>> fetchOrderItemsWithDetails(Long orderId) {
         return orderItemRepository.findAllByOrderId(orderId)
                 .flatMap(this::buildOrderItemDtoWithItemDetails)
                 .collectList();
@@ -104,7 +138,7 @@ public class OrderService {
         return orderItem;
     }
 
-    private Mono<OrderDto> calculateTotalAndSaveOrder(java.util.List<OrderItem> orderItems) {
+    private Mono<OrderDto> calculateTotalAndSaveOrder(List<OrderItem> orderItems) {
         Order order = new Order();
         long totalSum = calculateOrderTotal(orderItems);
         order.setTotalSum(totalSum);
@@ -112,13 +146,13 @@ public class OrderService {
         return saveOrderWithItems(order, orderItems);
     }
 
-    private long calculateOrderTotal(java.util.List<OrderItem> orderItems) {
+    private long calculateOrderTotal(List<OrderItem> orderItems) {
         return orderItems.stream()
                 .mapToLong(OrderItem::getSubtotal)
                 .sum();
     }
 
-    private Mono<OrderDto> saveOrderWithItems(Order order, java.util.List<OrderItem> orderItems) {
+    private Mono<OrderDto> saveOrderWithItems(Order order, List<OrderItem> orderItems) {
         return orderRepository.save(order)
                 .flatMap(savedOrder -> {
                     orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
@@ -126,7 +160,7 @@ public class OrderService {
                 });
     }
 
-    private Mono<OrderDto> saveOrderItemsAndBuildDto(Order savedOrder, java.util.List<OrderItem> orderItems) {
+    private Mono<OrderDto> saveOrderItemsAndBuildDto(Order savedOrder, List<OrderItem> orderItems) {
         return orderItemRepository.saveAll(orderItems)
                 .flatMap(savedItem ->
                         itemRepository.findById(savedItem.getItemId())
