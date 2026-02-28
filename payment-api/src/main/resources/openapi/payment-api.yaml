@@ -1,22 +1,17 @@
 openapi: 3.0.3
 info:
   title: Payment Service API
-  version: 1.0.0
+  version: 1.1.0
 
 servers:
   - url: http://localhost:8081
 
 paths:
-  /payments/{userId}/balance:
+  /payments/balance:
     get:
-      operationId: getUserBalance
-      summary: Get user balance
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
+      operationId: getCurrentUserBalance
+      summary: Get current user balance
+      description: Returns balance for authenticated user
       responses:
         '200':
           description: Balance response
@@ -24,11 +19,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BalanceResponse'
+        '401':
+          description: Unauthorized
 
   /payments:
     post:
       operationId: performPayment
-      summary: Perform payment
+      summary: Perform payment for current user
+      description: Deducts money from authenticated user's balance
       requestBody:
         required: true
         content:
@@ -42,14 +40,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Unauthorized
+        '400':
+          description: Invalid request
 
 components:
   schemas:
     BalanceResponse:
       type: object
       properties:
-        userId:
-          type: string
         balance:
           type: number
           format: double
@@ -58,9 +58,9 @@ components:
 
     PaymentRequest:
       type: object
+      required:
+        - amount
       properties:
-        userId:
-          type: string
         amount:
           type: number
           format: double

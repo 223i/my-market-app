@@ -3,38 +3,38 @@ package com.iron.service;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class PaymentService {
 
-    private final Map<String, Double> balances = new ConcurrentHashMap<>();
+    private final AtomicReference<BigDecimal> balance =
+            new AtomicReference<>(new BigDecimal("1000.00"));
 
-    public PaymentService() {
-        balances.put("user-1", 100.0);
-        balances.put("user-2", 250.0);
+    public Mono<BigDecimal> getBalance() {
+        return Mono.just(balance.get());
     }
 
-    public Mono<Double> getBalance(String userId) {
-        return Mono.justOrEmpty(balances.get(userId));
-    }
+    public Mono<BigDecimal> performPayment(BigDecimal amount) {
 
-    public Mono<Double> performPayment(String userId, double amount) {
-
-        Double balance = balances.get(userId);
-
-        if (balance == null) {
-            return Mono.error(new RuntimeException("User not found"));
+        if (amount == null || amount.signum() <= 0) {
+            return Mono.error(new IllegalArgumentException("Amount must be positive"));
         }
 
-        if (balance < amount) {
-            return Mono.error(new RuntimeException("Insufficient funds"));
+        while (true) {
+            BigDecimal current = balance.get();
+
+            if (current.compareTo(amount) < 0) {
+                return Mono.error(new RuntimeException("Insufficient funds"));
+            }
+
+            BigDecimal updated = current.subtract(amount);
+
+            // atomic CAS update
+            if (balance.compareAndSet(current, updated)) {
+                return Mono.just(updated);
+            }
         }
-
-        double newBalance = balance - amount;
-        balances.put(userId, newBalance);
-
-        return Mono.just(newBalance);
     }
 }
