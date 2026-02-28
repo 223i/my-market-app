@@ -125,6 +125,11 @@
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -151,7 +156,6 @@
                             <generatorName>java</generatorName>
                             <library>webclient</library>
                             <configOptions>
-                                <useJakartaEe>true</useJakartaEe>
                                 <reactive>true</reactive>
                                 <useSpringBoot3>true</useSpringBoot3>
                                 <interfaceOnly>false</interfaceOnly>
@@ -160,6 +164,9 @@
                                 <generateClient>true</generateClient>
                                 <generateApis>true</generateApis>
                                 <generateModels>true</generateModels>
+                                <useBeanValidation>false</useBeanValidation>
+                                <performBeanValidation>false</performBeanValidation>
+                                <sourceFolder>src/main/java</sourceFolder>
                             </configOptions>
                             <apiPackage>com.iron.payment.client.api</apiPackage>
                             <modelPackage>com.iron.payment.client.model</modelPackage>
