@@ -15,8 +15,8 @@ WORKDIR /app
 # Создаем директорию для логов
 RUN mkdir -p /app/logs
 
-COPY --from=build /app/target/market-app-*.jar app.jar
+COPY --from=build /app/target/payment-service-*.jar app.jar
 
-EXPOSE 8080
+EXPOSE 8081
 
 ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=docker"]
