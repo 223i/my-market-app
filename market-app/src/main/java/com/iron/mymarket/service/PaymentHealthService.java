@@ -55,8 +55,4 @@ public class PaymentHealthService {
                     return Mono.just(false);
                 });
     }
-
-    public void forceCheck() {
-        lastCheckTime = 0; // Сбрасываем время кеша для принудительной проверки
-    }
 }
