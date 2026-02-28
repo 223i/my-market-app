@@ -3,6 +3,7 @@ package com.iron.mymarket.controller;
 import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.service.OrderService;
 import com.iron.mymarket.service.CartService;
+import com.iron.mymarket.service.PaymentHealthService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,10 +22,12 @@ public class OrdersController {
 
     private final OrderService orderService;
     private final CartService cartService;
+    private final PaymentHealthService paymentHealthService;
 
-    public OrdersController(OrderService orderService, CartService cartService) {
+    public OrdersController(OrderService orderService, CartService cartService, PaymentHealthService paymentHealthService) {
         this.orderService = orderService;
         this.cartService = cartService;
+        this.paymentHealthService = paymentHealthService;
     }
 
     @GetMapping("/orders")
@@ -51,23 +54,47 @@ public class OrdersController {
         if (cart == null || cart.getItems().isEmpty()) {
             return cartService.getCartItems(cart != null ? cart : new CartStorage())
                     .collectList()
-                    .map(items -> Rendering.view("cart")
+                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
+                    .map(tuple -> Rendering.view("cart")
                             .modelAttribute("error", "Cart is empty")
-                            .modelAttribute("items", items)
+                            .modelAttribute("items", tuple.getT1())
                             .modelAttribute("total", 0L)
+                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
+                            .modelAttribute("paymentServiceMessage", 
+                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
                             .build());
         }
 
-        return orderService.createNewOrderWithPayment(cart)
-                .flatMap(createdOrder -> session.save()
-                        .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true").build()))
-                .onErrorResume(e -> cartService.getCartItems(cart != null ? cart : new CartStorage())
-                        .collectList()
-                        .zipWith(cartService.getTotal(cart != null ? cart : new CartStorage()))
-                        .map(tuple -> Rendering.view("cart")
-                                .modelAttribute("error", e.getMessage())
-                                .modelAttribute("items", tuple.getT1())
-                                .modelAttribute("total", tuple.getT2())
-                                .build()));
+        return paymentHealthService.isPaymentServiceAvailable()
+                .flatMap(isAvailable -> {
+                    if (!isAvailable) {
+                        return cartService.getCartItems(cart)
+                                .collectList()
+                                .zipWith(cartService.getTotal(cart))
+                                .map(tuple -> Rendering.view("cart")
+                                        .modelAttribute("error", "Сервис оплаты временно недоступен. Попробуйте позже.")
+                                        .modelAttribute("items", tuple.getT1())
+                                        .modelAttribute("total", tuple.getT2())
+                                        .modelAttribute("paymentServiceAvailable", false)
+                                        .modelAttribute("paymentServiceMessage", "Сервис оплаты временно недоступен. Попробуйте позже.")
+                                        .build());
+                    }
+
+                    return orderService.createNewOrderWithPayment(cart)
+                            .flatMap(createdOrder -> session.save()
+                                    .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true").build()))
+                            .onErrorResume(e -> cartService.getCartItems(cart)
+                                    .collectList()
+                                    .zipWith(cartService.getTotal(cart))
+                                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
+                                    .map(tuple -> Rendering.view("cart")
+                                            .modelAttribute("error", e.getMessage())
+                                            .modelAttribute("items", tuple.getT1().getT1())
+                                            .modelAttribute("total", tuple.getT1().getT2())
+                                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
+                                            .modelAttribute("paymentServiceMessage", 
+                                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
+                                            .build()));
+                });
     }
 }

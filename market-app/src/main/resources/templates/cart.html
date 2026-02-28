@@ -52,12 +52,23 @@
                     <p th:text="${error}"></p>
                 </div>
 
-                <form action="/buy" method="post" th:if="${items != null and !items.isEmpty()}">
+                <!-- Сообщение о недоступности платежного сервиса -->
+                <div th:if="${paymentServiceMessage}" class="alert alert-warning">
+                    <p th:text="${paymentServiceMessage}"></p>
+                </div>
+
+                <form action="/buy" method="post" th:if="${items != null and !items.isEmpty() and paymentServiceAvailable}">
                     <div class="hstack gap-3">
                         <h2 th:text="'Итого: '+${total}+' руб.'"/>
-                        <button class="btn btn-warning ms-auto">Купить</button>
+                        <button type="submit" class="btn btn-warning ms-auto">Купить</button>
                     </div>
                 </form>
+
+                <!-- Кнопка покупки отключена, если сервис недоступен -->
+                <div th:if="${items != null and !items.isEmpty() and !paymentServiceAvailable}" class="hstack gap-3">
+                    <h2 th:text="'Итого: '+${total}+' руб.'"/>
+                    <button type="button" class="btn btn-secondary ms-auto" disabled>Оплата недоступна</button>
+                </div>
 
                 <!-- Сообщение, если корзина пуста -->
                 <div th:if="${items == null or items.isEmpty()}" class="alert alert-secondary">

@@ -18,7 +18,19 @@ public class PaymentClientService {
 
     public Mono<Double> getBalance() {
         return paymentsApi.getCurrentUserBalance()
-                .map(BalanceResponse::getBalance);
+                .map(BalanceResponse::getBalance)
+                .onErrorMap(e -> {
+                    String errorMessage = e.getMessage();
+                    if (errorMessage != null && (
+                        errorMessage.contains("Connection refused") ||
+                        errorMessage.contains("localhost:8081") ||
+                        errorMessage.contains("No route to host") ||
+                        errorMessage.contains("Connection timeout") ||
+                        errorMessage.contains("ConnectException"))) {
+                        return new RuntimeException("Сервис оплаты временно недоступен. Попробуйте позже.");
+                    }
+                    return e;
+                });
     }
 
     public Mono<Double> pay(double amount) {
@@ -26,7 +38,19 @@ public class PaymentClientService {
         request.setAmount(amount);
 
         return paymentsApi.performPayment(request)
-                .map(PaymentResponse::getRemainingBalance);
+                .map(PaymentResponse::getRemainingBalance)
+                .onErrorMap(e -> {
+                    String errorMessage = e.getMessage();
+                    if (errorMessage != null && (
+                        errorMessage.contains("Connection refused") ||
+                        errorMessage.contains("localhost:8081") ||
+                        errorMessage.contains("No route to host") ||
+                        errorMessage.contains("Connection timeout") ||
+                        errorMessage.contains("ConnectException"))) {
+                        return new RuntimeException("Сервис оплаты временно недоступен. Попробуйте позже.");
+                    }
+                    return e;
+                });
 
     }
 }

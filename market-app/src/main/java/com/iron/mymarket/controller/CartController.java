@@ -3,6 +3,7 @@ package com.iron.mymarket.controller;
 import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.service.CartService;
+import com.iron.mymarket.service.PaymentHealthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,19 +21,33 @@ import java.util.Objects;
 public class CartController {
 
     private final CartService cartService;
+    private final PaymentHealthService paymentHealthService;
 
-    public CartController(CartService cartService) {
+    public CartController(CartService cartService, PaymentHealthService paymentHealthService) {
         this.cartService = cartService;
+        this.paymentHealthService = paymentHealthService;
     }
 
     @GetMapping("/cart/items")
     public Mono<Rendering> getItemsInCart(WebSession session) {
         CartStorage cart = session.getAttribute("cart");
 
-        return Mono.just(Rendering.view("cart")
-                .modelAttribute("items", cart != null ? cartService.getCartItems(cart) : List.of())
-                .modelAttribute("total", cart != null ? cartService.getTotal(cart) : 0L)
-                .build());
+        return paymentHealthService.isPaymentServiceAvailable()
+                .zipWith(cartService.getTotal(cart != null ? cart : new CartStorage()))
+                .zipWith(cartService.getCartItems(cart != null ? cart : new CartStorage()).collectList())
+                .map(tuple -> {
+                    Boolean isPaymentAvailable = tuple.getT1().getT1();
+                    Long total = tuple.getT1().getT2();
+                    List items = tuple.getT2();
+                    
+                    return Rendering.view("cart")
+                            .modelAttribute("items", items)
+                            .modelAttribute("total", total)
+                            .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
+                            .modelAttribute("paymentServiceMessage", 
+                                    isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
+                            .build();
+                });
     }
 
     @PostMapping("/cart/items")
@@ -54,10 +69,22 @@ public class CartController {
                         session.getAttributes().put("cart", updatedCart);
                         return session.save();
                     })
-                    .then(Mono.just(Rendering.view("cart")
-                            .modelAttribute("items", cartService.getCartItems(cart))
-                            .modelAttribute("total", cartService.getTotal(cart))
-                            .build()));
+                    .then(paymentHealthService.isPaymentServiceAvailable()
+                    .zipWith(cartService.getTotal(cart))
+                    .zipWith(cartService.getCartItems(cart).collectList())
+                    .map(tuple -> {
+                        Boolean isPaymentAvailable = tuple.getT1().getT1();
+                        Long total = tuple.getT1().getT2();
+                        List items = tuple.getT2();
+                        
+                        return Rendering.view("cart")
+                                .modelAttribute("items", items)
+                                .modelAttribute("total", total)
+                                .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
+                                .modelAttribute("paymentServiceMessage", 
+                                        isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
+                                .build();
+                    }));
         });
     }
 }
