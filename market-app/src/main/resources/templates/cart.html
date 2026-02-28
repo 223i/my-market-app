@@ -52,7 +52,7 @@
                     <p th:text="${error}"></p>
                 </div>
 
-                <form action="/buy" method="post" th:if="${!items.isEmpty()}">
+                <form action="/buy" method="post" th:if="${items != null and !items.isEmpty()}">
                     <div class="hstack gap-3">
                         <h2 th:text="'Итого: '+${total}+' руб.'"/>
                         <button class="btn btn-warning ms-auto">Купить</button>
@@ -60,7 +60,7 @@
                 </form>
 
                 <!-- Сообщение, если корзина пуста -->
-                <div th:if="${items.isEmpty()}" class="alert alert-secondary">
+                <div th:if="${items == null or items.isEmpty()}" class="alert alert-secondary">
                     Корзина пуста
                 </div>
 

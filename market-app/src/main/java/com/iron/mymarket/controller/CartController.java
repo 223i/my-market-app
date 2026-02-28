@@ -13,6 +13,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Objects;
 
 @Controller
@@ -29,8 +30,8 @@ public class CartController {
         CartStorage cart = session.getAttribute("cart");
 
         return Mono.just(Rendering.view("cart")
-                .modelAttribute("items", cartService.getCartItems(Objects.requireNonNull(cart)))
-                .modelAttribute("total", cartService.getTotal(cart))
+                .modelAttribute("items", cart != null ? cartService.getCartItems(cart) : List.of())
+                .modelAttribute("total", cart != null ? cartService.getTotal(cart) : 0L)
                 .build());
     }
 
