@@ -46,12 +46,24 @@
         </div>
         <div class="row p-2">
             <div class="col">
+
+                <!-- Ошибка платежа или пустая корзина -->
+                <div th:if="${error}" class="alert alert-danger">
+                    <p th:text="${error}"></p>
+                </div>
+
                 <form action="/buy" method="post" th:if="${!items.isEmpty()}">
                     <div class="hstack gap-3">
                         <h2 th:text="'Итого: '+${total}+' руб.'"/>
                         <button class="btn btn-warning ms-auto">Купить</button>
                     </div>
                 </form>
+
+                <!-- Сообщение, если корзина пуста -->
+                <div th:if="${items.isEmpty()}" class="alert alert-secondary">
+                    Корзина пуста
+                </div>
+
             </div>
         </div>
     </div>
