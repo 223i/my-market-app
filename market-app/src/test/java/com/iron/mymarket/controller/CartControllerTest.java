@@ -151,8 +151,8 @@ class CartControllerTest {
         var inOrder = Mockito.inOrder(cartService);
 
         inOrder.verify(cartService).changeItemCount(eq(1L), eq(ItemAction.MINUS), any(CartStorage.class));
-        inOrder.verify(cartService).getCartItems(any(CartStorage.class));
         inOrder.verify(cartService).getTotal(any());
+        inOrder.verify(cartService).getCartItems(any(CartStorage.class));
     }
 
     @Test
