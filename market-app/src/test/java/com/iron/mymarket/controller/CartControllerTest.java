@@ -4,6 +4,7 @@ import com.iron.mymarket.dao.repository.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
+import com.iron.mymarket.service.PaymentHealthService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,9 @@ class CartControllerTest {
     @MockitoBean
     private CartService cartService;
 
+    @MockitoBean
+    private PaymentHealthService paymentHealthService;
+
     @Test
     void getItemsInCart_shouldReturnCartPageWithItemsAndTotal() {
         Flux<ItemDto> items = Flux.just(
@@ -37,6 +41,7 @@ class CartControllerTest {
 
         Mockito.when(cartService.getCartItems(any())).thenReturn(items);
         Mockito.when(cartService.getTotal(any())).thenReturn(Mono.just(400L));
+        Mockito.when(paymentHealthService.isPaymentServiceAvailable()).thenReturn(Mono.just(true));
 
         webTestClient.get()
                 .uri("/cart/items")
@@ -62,6 +67,7 @@ class CartControllerTest {
         Mockito.when(cartService.getTotal(any())).thenReturn(Mono.just(300L));
         Mockito.when(cartService.changeItemCount(anyLong(), any(), any()))
                 .thenReturn(Mono.just(cartStorage));
+        Mockito.when(paymentHealthService.isPaymentServiceAvailable()).thenReturn(Mono.just(true));
 
         // when / then
         webTestClient.post()
@@ -89,6 +95,7 @@ class CartControllerTest {
         Mockito.when(cartService.getTotal(any())).thenReturn(Mono.just(0L));
         Mockito.when(cartService.changeItemCount(anyLong(), any(), any()))
                 .thenReturn(Mono.empty());
+        Mockito.when(paymentHealthService.isPaymentServiceAvailable()).thenReturn(Mono.just(true));
 
         // when / then
         webTestClient.post()
@@ -131,6 +138,7 @@ class CartControllerTest {
         Mockito.when(cartService.getTotal(any())).thenReturn(Mono.just(0L));
         Mockito.when(cartService.changeItemCount(anyLong(), any(), any()))
                 .thenReturn(Mono.empty());
+        Mockito.when(paymentHealthService.isPaymentServiceAvailable()).thenReturn(Mono.just(true));
 
         webTestClient.post()
                 .uri("/cart/items")
@@ -152,6 +160,7 @@ class CartControllerTest {
         // given
         Mockito.when(cartService.getCartItems(any())).thenReturn(Flux.empty());
         Mockito.when(cartService.getTotal(any())).thenReturn(Mono.just(0L));
+        Mockito.when(paymentHealthService.isPaymentServiceAvailable()).thenReturn(Mono.just(true));
 
         // when / then
         webTestClient.get()
