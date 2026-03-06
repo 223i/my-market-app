@@ -40,7 +40,9 @@ public class PaymentsController implements PaymentsApi {
     public Mono<ResponseEntity<PaymentResponse>> performPayment(
             @Parameter(name = "PaymentRequest", description = "", required = true) @Valid @RequestBody Mono<PaymentRequest> paymentRequest,
             @Parameter(hidden = true) final ServerWebExchange exchange) {
-        return paymentRequest.flatMap(req ->
+        return paymentRequest
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Request body is missing")))
+                .flatMap(req ->
                 paymentService.performPayment(BigDecimal.valueOf(req.getAmount()))
                         .map(newBalance -> {
                             PaymentResponse response = new PaymentResponse();

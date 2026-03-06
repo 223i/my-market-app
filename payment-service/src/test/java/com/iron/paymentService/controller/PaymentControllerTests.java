@@ -186,9 +186,6 @@ class PaymentControllerTests {
 
     @Test
     void performPayment_withNullPaymentRequestMono_shouldPropagateError() {
-        when(paymentService.performPayment(any(BigDecimal.class)))
-                .thenReturn(Mono.error(new IllegalArgumentException("Amount must be positive")));
-
         StepVerifier.create(paymentsController.performPayment(Mono.empty(), serverWebExchange))
                 .expectError()
                 .verify();

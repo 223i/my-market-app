@@ -18,7 +18,7 @@ class PaymentServiceTests {
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentService();
+        paymentService = new PaymentService(new BigDecimal("1000000.00"));
     }
 
     @Test

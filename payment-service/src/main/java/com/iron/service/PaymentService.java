@@ -1,5 +1,6 @@
 package com.iron.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -9,8 +10,13 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class PaymentService {
 
-    private final AtomicReference<BigDecimal> balance =
-            new AtomicReference<>(new BigDecimal("1000000.00"));
+    private final AtomicReference<BigDecimal> balance;
+
+
+    public PaymentService(@Value("${payment.initial.balance:10000}") BigDecimal balance) {
+        this.balance = new AtomicReference<>(balance);;
+    }
+
 
     public Mono<BigDecimal> getBalance() {
         return Mono.just(balance.get());
