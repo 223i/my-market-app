@@ -119,7 +119,7 @@ public class ItemServiceTest {
                 search, search, PageRequest.of(0, 5, Sort.unsorted()))).thenReturn(page);
         when(itemMapper.toItemDto(item)).thenReturn(dto);
         when(cacheService.get(anyString())).thenReturn(Mono.empty());
-        when(cacheService.setWithExpiration("items:search:"+ search + ":sort:NO:page:1:size:5", List.of(dto),
+        when(cacheService.setWithExpiration("items:search:" + search + ":sort:NO:page:1:size:5", List.of(dto),
                 Duration.ofMinutes(5))).thenReturn(Mono.just(true));
 
         List<ItemDto> result = itemService.findItems(search, ItemSort.NO, 1, 5).collectList().block();

@@ -75,7 +75,7 @@ public class CartServiceTest {
 
         when(itemRepository.findById(1L)).thenReturn(Mono.just(item));
         when(cacheService.get("items:1")).thenReturn(Mono.empty());
-        when(cacheService.setWithExpiration("items:1", dto,  Duration.ofMinutes(5))).thenReturn(Mono.just(true));
+        when(cacheService.setWithExpiration("items:1", dto, Duration.ofMinutes(5))).thenReturn(Mono.just(true));
         when(itemMapper.toItemDto(item)).thenReturn(dto);
         when(cartStorage.getCount(1L)).thenReturn(3);
 
