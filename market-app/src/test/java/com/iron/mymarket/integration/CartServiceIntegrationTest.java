@@ -9,7 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +25,7 @@ class CartServiceIntegrationTest {
     @Autowired
     private CartService cartService;
 
-    @MockBean
+    @MockitoBean
     private ItemRepository itemRepository;
 
     private CartStorage testCart;
