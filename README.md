@@ -32,6 +32,8 @@ Docker Compose конфигурация для запуска полного с�
 
 ## 🚀 Быстрый запуск
 
+### Способ 1: Все сервисы через Docker Compose (рекомендуется)
+
 ```bash
 # Запуск всех сервисов
 docker-compose up -d
@@ -43,22 +45,98 @@ docker-compose logs -f
 docker-compose down
 ```
 
+### Способ 2: Отдельный запуск сервисов
+
+```bash
+# Запуск только market-app
+docker build -t market-app -f market-app/Dockerfile .
+docker run -d --name market-app -p 8080:8080 market-app
+
+# Запуск только payment-service  
+docker build -t payment-service -f payment-service/Dockerfile .
+docker run -d --name payment-service -p 8081:8081 payment-service
+
+# Запуск с зависимостями через docker-compose
+docker-compose up -d market-db market-redis
+docker build -t market-app -f market-app/Dockerfile .
+docker run -d --name market-app -p 8080:8080 \
+  --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
+  -e SPRING_REDIS_HOST=market-redis \
+  market-app
+```
+
+### Способ 3: Multi-stage build (оптимизированная сборка)
+
+```bash
+# Сборка всех модулей одним Dockerfile
+docker build -t my-market-build -f Dockerfile .
+
+# Запуск market-app
+docker run -d --name market-app -p 8080:8080 --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
+  -e SPRING_REDIS_HOST=market-redis \
+  my-market-build
+
+# Запуск payment-service
+docker run -d --name payment-service -p 8081:8081 --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://payment-db:9092/payment \
+  my-market-build
+```
+
+### Способ 4: Локальный запуск (для разработки)
+
+```bash
+# Запуск Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# Запуск payment-service
+cd payment-service
+../mvnw spring-boot:run
+
+# Запуск market-app (в другом терминале)
+cd market-app  
+../mvnw spring-boot:run
+```
+
 ## 📂 Структура
 
 ```
 my-market-app/
 ├── docker-compose.yml              # Основной файл конфигурации
+├── Dockerfile                      # Multi-stage build для всех сервисов
 ├── market-app/
-│   ├── Dockerfile                 # Сборка market-app
+│   ├── Dockerfile                 # Сборка market-app (независимая)
 │   ├── .dockerignore             # Исключения для Docker
 │   └── src/main/resources/
 │       └── application-docker.properties  # Конфигурация для Docker
 └── payment-service/
-    ├── Dockerfile                 # Сборка payment-service
+    ├── Dockerfile                 # Сборка payment-service (независимая)
     ├── .dockerignore             # Исключения для Docker
     └── src/main/resources/
         └── application-docker.properties  # Конфигурация для Docker
 ```
+
+### 🐳 Docker файлы
+
+**Корневой Dockerfile (multi-stage build):**
+- `build` stage - сборка всех модулей Maven
+- `market-app-final` stage - финальный образ для market-app
+- `payment-service-final` stage - финальный образ для payment-service
+
+**Локальные Dockerfile'ы:**
+- `market-app/Dockerfile` - независимая сборка market-app
+- `payment-service/Dockerfile` - независимая сборка payment-service
+- Используют `-pl` флаг для сборки только нужного модуля
+
+### 🔄 Преимущества подходов
+
+| Подход | Преимущества | Недостатки |
+|--------|--------------|------------|
+| **Docker Compose** | ✅ Полная автоматизация<br>✅ Управление зависимостями<br>✅ Сетевая изоляция | ❌ Медленная первая сборка |
+| **Отдельные Dockerfile'ы** | ✅ Независимый запуск<br>✅ Быстрая пересборка<br>✅ Гибкость разработки | ❌ Ручное управление зависимостями |
+| **Multi-stage build** | ✅ Эффективный кеш<br>✅ Единая точка сборки<br>✅ Оптимизация размера | ❌ Сложнее конфигурация |
+| **Локальный запуск** | ✅ Быстрая разработка<br>✅ Удобная отладка<br>✅ Полный контроль | ❌ Требует локальной JDK/Maven |
 
 ## 🔧 Конфигурация
 

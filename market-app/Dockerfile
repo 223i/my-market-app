@@ -6,12 +6,12 @@ COPY pom.xml .
 COPY market-app/pom.xml ./market-app/
 COPY payment-service/pom.xml ./payment-service/
 COPY payment-api/pom.xml ./payment-api/
+
 RUN mvn dependency:go-offline
 
 COPY market-app/src ./market-app/src
-COPY payment-service/src ./payment-service/src
-COPY payment-api/src ./payment-api/src
-RUN mvn clean package -DskipTests
+
+RUN mvn clean package -DskipTests -pl market-app
 
 FROM eclipse-temurin:21-jdk
 
