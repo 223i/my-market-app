@@ -474,9 +474,6 @@ tail -f market-app/logs/spring.log
 docker build -t market-app:latest ./market-app
 docker build -t payment-service:latest ./payment-service
 
-# Запуск в продакшн режиме
-docker-compose -f docker-compose.prod.yml up -d
-
 ```
 
 ### 📚 Дополнительные ресурсы
