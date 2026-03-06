@@ -1,6 +1,8 @@
 package com.iron.mymarket.service;
 
 import com.iron.payment.client.api.DefaultApi;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,45 +16,19 @@ import java.time.Duration;
 public class PaymentHealthService {
 
     private final DefaultApi paymentApi;
-    private volatile boolean isPaymentServiceAvailable = true;
-    private volatile long lastCheckTime = 0;
-    private static final long CHECK_INTERVAL_MS = 30000; // 30 секунд
-    private static final Duration TIMEOUT = Duration.ofSeconds(3);
+    private final CircuitBreakerRegistry registry;
 
     public Mono<Boolean> isPaymentServiceAvailable() {
-        long currentTime = System.currentTimeMillis();
-        
-        // Если последняя проверка была недавно, вернем кешированный результат
-        if (currentTime - lastCheckTime < CHECK_INTERVAL_MS) {
-            return Mono.just(isPaymentServiceAvailable);
-        }
+        var circuitBreaker = registry.circuitBreaker("paymentService");
 
         return paymentApi.getCurrentUserBalance()
-                .timeout(TIMEOUT)
-                .map(response -> {
-                    isPaymentServiceAvailable = true;
-                    lastCheckTime = currentTime;
-                    log.debug("Payment service is available");
-                    return true;
-                })
+                .timeout(Duration.ofSeconds(3))
+                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
+                .map(response -> true)
                 .onErrorResume(e -> {
-                    isPaymentServiceAvailable = false;
-                    lastCheckTime = currentTime;
-                    String errorMessage = e.getMessage();
-                    
-                    // Проверяем на конкретные ошибки соединения
-                    if (errorMessage != null && (
-                        errorMessage.contains("Connection refused") ||
-                        errorMessage.contains("localhost:8081") ||
-                        errorMessage.contains("No route to host") ||
-                        errorMessage.contains("Connection timeout") ||
-                        errorMessage.contains("ConnectException"))) {
-                        log.warn("Payment service connection failed: {}", errorMessage);
-                    } else {
-                        log.warn("Payment service is unavailable: {}", errorMessage);
-                    }
-                    
+                    log.warn("Payment check failed: {}", e.getMessage());
                     return Mono.just(false);
                 });
+
     }
 }
