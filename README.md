@@ -1,260 +1,485 @@
-# 🚀 My Market App — Реактивная витрина интернет-магазина
+# My Market App
 
-Веб-приложение «Витрина интернет-магазина», реализованное на **Spring Boot 3** с использованием **полностью реактивного стека технологий (Project Reactor)**.
+## 📋 Описание проекта
 
-В отличие от классических приложений, данный проект построен на неблокирующем вводе-выводе, что позволяет эффективно обрабатывать большое количество одновременных соединений при минимальном потреблении ресурсов.
+My Market App - это микросервисное приложение для управления маркетплейсом с функционалом:
+- **market-app** - основное приложение с каталогом товаров, корзиной и заказами
+- **payment-service** - микросервис для обработки платежей
+- **Docker Compose** - конфигурация для развертывания полного стека
 
----
-
-## 📌 Основные возможности
-
-*   **Reactive UI**: Асинхронный рендеринг витрины товаров через Thymeleaf.
-*   **Поиск и сортировка**: Гибкая фильтрация товаров в реактивном потоке.
-*   **Пагинация**: Реализована на уровне реактивных репозиториев (R2DBC).
-*   **Управление корзиной**: Хранение состояния корзины в `WebSession`.
-*   **Оформление заказов**: Транзакционное создание заказов с использованием `TransactionalOperator`.
-*   **Реактивный доступ к данным**: Полное отсутствие блокирующих вызовов (JDBC/JPA).
-
----
-
-## 🧱 Технологический стек
-
-### Backend
-*   **Java 21**
-*   **Spring Boot 3.4**
-*   **Spring WebFlux** (вместо Spring MVC)
-*   **Spring Data R2DBC** (вместо JPA/Hibernate)
-*   **Project Reactor** (Mono, Flux)
-*   **Thymeleaf** (реактивный режим для WebFlux)
-*   **Netty** (Embedded Server)
-
-### База данных
-*   **H2 (R2DBC)** — база данных в памяти для быстрой разработки и тестирования.
-
-### Тестирование
-*   **JUnit 5**
-*   **StepVerifier** — специализированный инструмент для тестирования реактивных стримов.
-*   **WebTestClient** — неблокирующее тестирование контроллеров.
-*   **Mockito** — мокирование реактивных сервисов и репозиториев.
-
----
-
-
-### Инфраструктура
-- Docker
-- Executable JAR
-
----
-
-## 📁 Структура проекта
-
-## 📁 Структура проекта
-
-```text
-my-market-app
-├── pom.xml
-├── Dockerfile
-├── src
-│   ├── main
-│   │   ├── java
-│   │   │   └── com.iron.mymarket
-│   │   │       ├── controller   # WebFlux контроллеры
-│   │   │       ├── service      # Реактивная бизнес-логика (Mono/Flux)
-│   │   │       ├── dao          # Слой доступа к данным
-│   │   │       │   ├── entities # Сущности R2DBC
-│   │   │       │   └── repository # Реактивные репозитории (R2dbcRepository)
-│   │   │       ├── dto          # Data Transfer Objects
-│   │   │       ├── mapper       # MapStruct или ручные мапперы
-│   │   │       └── configuration # Настройка Session, TransactionalOperator и др.
-│   │   └── resources
-│   │       ├── application.properties
-│   │       ├── schema.sql       # Инициализация схемы БД
-│   │       ├── data.sql         # Тестовые данные
-│   │       ├── static/img       # Изображения товаров
-│   │       └── templates        # Шаблоны (items, cart, orders...)
-│   └── test
-│       └── java
-│            └── com.iron.mymarket
-│                           ├── controller      # Тесты для контроллеров
-│                           ├── repository      # Тесты для кастомных методов в репозиториях
-│                           └── service         # Тесты для методов сервисов
-
+### Архитектура
 ```
----
-
-## 🖥 HTML-шаблоны (Thymeleaf)
-
-| Шаблон        | URL               | Назначение        |
-|--------------|-------------------|-------------------|
-| `items.html` | `/`, `/items`     | Витрина товаров   |
-| `item.html`  | `/items/{id}`     | Карточка товара   |
-| `cart.html`  | `/cart/items`     | Корзина           |
-| `orders.html`| `/orders`         | Список заказов    |
-| `order.html` | `/orders/{id}`    | Детали заказа     |
-
----
-
-## 🌐 Web API
-
-### 🔹 Витрина товаров
-
-#### Получение списка товаров
-
-GET /
-GET /items
-
-
-**Query-параметры:**
-- `search` — строка поиска (опционально)
-- `sort` — `NO | ALPHA | PRICE`
-- `pageNumber` — номер страницы (по умолчанию `1`)
-- `pageSize` — размер страницы (по умолчанию `5`)
-
-**Модель:**
-- `items` — список списков товаров (по 3 в строке)
-- `search`
-- `sort`
-- `paging`
-
----
-
-#### Изменение количества товара (с витрины)
-
-
-POST /items
-
-
-**Параметры:**
-- `id` — идентификатор товара (обязательный)
-- `action` — `PLUS | MINUS`
-- параметры фильтрации и пагинации
-
-**Результат:**
-
-redirect:/items?...
-
----
-
-### 🔹 Карточка товара
-
-#### Получение товара
-
-
-GET /items/{id}
-
-
-**Модель:**
-- `item`
-
----
-
-#### Изменение количества товара
-
-
-POST /items/{id}?action=PLUS|MINUS
-
-
----
-
-### 🔹 Корзина
-
-#### Получение корзины
-
-
-GET /cart/items
-
-
-**Модель:**
-- `items`
-- `total`
-
----
-
-#### Изменение корзины
-
-
-POST /cart/items?id={id}&action=PLUS|MINUS|DELETE
-
----
-
-### 🔹 Заказы
-
-#### Получение списка заказов
-
-
-GET /orders
-
-
-**Модель:**
-- `orders`
-
----
-
-#### Получение заказа
-
-
-GET /orders/{id}?newOrder=true|false
-
-
-**Модель:**
-- `order`
-- `newOrder`
-
----
-
-#### Оформление заказа
-
-
-POST /buy
-**Результат:**
-redirect:/orders/{id}?newOrder=true
-
-
----
-
-## 🖼 Работа с изображениями
-
-- Изображения товаров хранятся в:
-
-src/main/resources/static/img/products
-
-
-- В сущности `Item` используется поле:
-```java
-String imgPath; 
-
-// пример: img/products/laptop_pro_15.jpg
-
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  market-app │    │payment-service│    │    Redis    │
+│   (8080)   │    │   (8081)    │    │  (6379)    │
+│             │    │             │    │             │
+│  Spring     │    │   Spring     │    │   Cache     │
+│ WebFlux     │    │  WebFlux     │    │             │
+│             │    │             │    │             │
+│     H2      │    │     H2      │    │             │
+│   (9092)    │    │   (9093)    │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘
 ```
 
-Отображение в Thymeleaf:
+## 🚀 Docker Compose
 
-<img th:src="@{/${item.imgPath}}" alt="Product image">
+Docker Compose конфигурация для запуска полного стека приложений:
+- **market-app** - основное приложение (порт 8080)
+- **payment-service** - сервис платежей (порт 8081)
+- **market-db** - база данных для market-app (H2, порт 9092)
+- **payment-db** - база данных для payment-service (H2, порт 9093)
+- **market-redis** - Redis для кеширования (порт 6379)
 
+## 🚀 Быстрый запуск
 
-## 🧪 Тестирование
+### Способ 1: Все сервисы через Docker Compose (рекомендуется)
 
-Проект покрыт тестами с использованием реактивных инструментов:
+```bash
+# Запуск всех сервисов
+docker-compose up -d
 
-*   **Юнит-тесты сервисов**: Использование `StepVerifier` для проверки цепочек `Mono` и `Flux`, а также проверки исключений.
-*   **Тесты контроллеров**: Использование `WebTestClient` для проверки статус-кодов, HTML-контента и передачи параметров.
-*   **Тесты репозиториев**: `@DataR2dbcTest` для проверки корректности SQL-запросов и пагинации в реактивной среде.
+# Просмотр логов
+docker-compose logs -f
 
-### Запуск тестов:
+# Остановка всех сервисов
+docker-compose down
+```
 
-mvn test
+### Способ 2: Отдельный запуск сервисов
 
-## 🚀 Запуск приложения
+```bash
+# Запуск только market-app
+docker build -t market-app -f market-app/Dockerfile .
+docker run -d --name market-app -p 8080:8080 market-app
 
-Локально
-mvn clean package
-java -jar target/my-market-app.jar
+# Запуск только payment-service  
+docker build -t payment-service -f payment-service/Dockerfile .
+docker run -d --name payment-service -p 8081:8081 payment-service
 
+# Запуск с зависимостями через docker-compose
+docker-compose up -d market-db market-redis
+docker build -t market-app -f market-app/Dockerfile .
+docker run -d --name market-app -p 8080:8080 \
+  --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
+  -e SPRING_REDIS_HOST=market-redis \
+  market-app
+```
 
-### Приложение доступно по адресу:
+### Способ 3: Multi-stage build (оптимизированная сборка)
 
-http://localhost:8080
+```bash
+# Сборка всех модулей одним Dockerfile
+docker build -t my-market-build -f Dockerfile .
 
-## 🐳 Запуск в Docker
-docker build -t my-market-app .
-docker run -p 8080:8080 my-market-app
+# Запуск market-app
+docker run -d --name market-app -p 8080:8080 --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
+  -e SPRING_REDIS_HOST=market-redis \
+  my-market-build
+
+# Запуск payment-service
+docker run -d --name payment-service -p 8081:8081 --network my-market-app_default \
+  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://payment-db:9092/payment \
+  my-market-build
+```
+
+### Способ 4: Локальный запуск (для разработки)
+
+```bash
+# Запуск Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# Запуск payment-service
+cd payment-service
+../mvnw spring-boot:run
+
+# Запуск market-app (в другом терминале)
+cd market-app  
+../mvnw spring-boot:run
+```
+
+## 📂 Структура
+
+```
+my-market-app/
+├── docker-compose.yml              # Основной файл конфигурации
+├── Dockerfile                      # Multi-stage build для всех сервисов
+├── market-app/
+│   ├── Dockerfile                 # Сборка market-app (независимая)
+│   ├── .dockerignore             # Исключения для Docker
+│   └── src/main/resources/
+│       └── application-docker.properties  # Конфигурация для Docker
+└── payment-service/
+    ├── Dockerfile                 # Сборка payment-service (независимая)
+    ├── .dockerignore             # Исключения для Docker
+    └── src/main/resources/
+        └── application-docker.properties  # Конфигурация для Docker
+```
+
+### 🐳 Docker файлы
+
+**Корневой Dockerfile (multi-stage build):**
+- `build` stage - сборка всех модулей Maven
+- `market-app-final` stage - финальный образ для market-app
+- `payment-service-final` stage - финальный образ для payment-service
+
+**Локальные Dockerfile'ы:**
+- `market-app/Dockerfile` - независимая сборка market-app
+- `payment-service/Dockerfile` - независимая сборка payment-service
+- Используют `-pl` флаг для сборки только нужного модуля
+
+### 🔄 Преимущества подходов
+
+| Подход | Преимущества | Недостатки |
+|--------|--------------|------------|
+| **Docker Compose** | ✅ Полная автоматизация<br>✅ Управление зависимостями<br>✅ Сетевая изоляция | ❌ Медленная первая сборка |
+| **Отдельные Dockerfile'ы** | ✅ Независимый запуск<br>✅ Быстрая пересборка<br>✅ Гибкость разработки | ❌ Ручное управление зависимостями |
+| **Multi-stage build** | ✅ Эффективный кеш<br>✅ Единая точка сборки<br>✅ Оптимизация размера | ❌ Сложнее конфигурация |
+| **Локальный запуск** | ✅ Быстрая разработка<br>✅ Удобная отладка<br>✅ Полный контроль | ❌ Требует локальной JDK/Maven |
+
+## 🔧 Конфигурация
+
+### Переменные окружения
+
+**market-app:**
+- `SPRING_DATASOURCE_URL` - URL подключения к H2
+- `SPRING_REDIS_HOST` - хост Redis
+- `PAYMENT_SERVICE_URL` - URL сервиса платежей
+
+**payment-service:**
+- `SPRING_DATASOURCE_URL` - URL подключения к H2
+- `payment.initial.balance` - начальный баланс (1,000,000.00)
+
+### Порты
+
+| Сервис | Внутренний порт | Внешний порт |
+|--------|----------------|--------------|
+| market-app | 8080 | 8080 |
+| payment-service | 8081 | 8081 |
+| market-db | 9092 | 9092 |
+| payment-db | 9092 | 9093 |
+| market-redis | 6379 | 6379 |
+
+## 🗂️ Тома данных
+
+- `market-data` - данные H2 для market-app
+- `payment-data` - данные H2 для payment-service  
+- `market-redis-data` - данные Redis
+
+## 🌐 Доступ к сервисам
+
+После запуска:
+
+- **Основное приложение**: http://localhost:8080
+- **Сервис платежей**: http://localhost:8081
+- **H2 Console (market)**: http://localhost:9092
+- **H2 Console (payment)**: http://localhost:9093
+- **Redis**: localhost:6379
+
+## 📝 Полезные команды
+
+```bash
+# Пересборка и запуск
+docker-compose up --build -d
+
+# Запуск только определенных сервисов
+docker-compose up -d market-app market-redis
+
+# Просмотр логов конкретного сервиса
+docker-compose logs -f market-app
+
+# Вход в контейнер
+docker-compose exec market-app bash
+
+# Очистка томов и контейнеров
+docker-compose down -v
+```
+
+## 🐛 Отладка
+
+### Просмотр логов
+```bash
+# Все логи
+docker-compose logs
+
+# Логи конкретного сервиса
+docker-compose logs market-app
+docker-compose logs payment-service
+```
+
+### Проверка здоровья сервисов
+```bash
+# Проверка доступности
+curl http://localhost:8080/actuator/health
+curl http://localhost:8081/actuator/health
+
+# Проверка сервиса платежей
+curl http://localhost:8081/api/balance
+```
+
+### Базы данных
+- **H2 Console**: http://localhost:9092 (JDBC URL: `jdbc:h2:tcp://localhost/market`)
+- **H2 Console Payment**: http://localhost:9093 (JDBC URL: `jdbc:h2:tcp://localhost/payment`)
+
+## ⚠️ Важные замечания
+
+1. **Первый запуск** может занять время из-за сборки образов
+2. **Порядок запуска**: базы данных запускаются первыми
+3. **Перезапуск кода**: используйте `docker-compose up --build` для пересборки
+4. **Логи**: все логи пишутся в директорию `./logs` на хосте
+5. **Профиль**: используется `docker` профиль для конфигурации
+
+## 🔒 Безопасность
+
+В продакшн среде рекомендуется:
+- Изменить пароли по умолчанию
+- Ограничить доступ к H2 console
+- Использовать HTTPS
+- Настроить сети Docker
+
+---
+
+## 💻 Разработка проекта
+
+### 📂 Структура проекта
+
+```
+my-market-app/
+├── pom.xml                           # Корневой Maven файл
+├── market-app/                        # Основное приложение
+│   ├── pom.xml                       # Maven конфигурация
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/iron/mymarket/
+│   │   │   │   ├── controller/          # Контроллеры
+│   │   │   │   ├── CartController.java
+│   │   │   │   ├── ItemsController.java
+│   │   │   │   └── OrdersController.java
+│   │   │   ├── service/              # Сервисы
+│   │   │   │   ├── CartService.java
+│   │   │   │   ├── OrderService.java
+│   │   │   │   ├── PaymentClientService.java
+│   │   │   │   └── PaymentHealthService.java
+│   │   │   ├── dao/                  # Доступ к данным
+│   │   │   │   └── repository/
+│   │   │   └── resources/
+│   │   │       ├── application.properties
+│   │   │       └── templates/          # Thymeleaf шаблоны
+│   │   └── test/                    # Тесты
+│   └── Dockerfile
+└── payment-service/                   # Сервис платежей
+    ├── pom.xml
+    ├── src/
+    │   ├── main/
+    │   │   └── java/com/iron/payment/
+    │   │       ├── PaymentController.java
+    │   │       ├── PaymentService.java
+    │   │       └── model/
+    │   └── test/
+    └── Dockerfile
+```
+
+### 🔨 Сборка мультипроекта
+
+```bash
+# Сборка всего проекта
+./mvnw clean install
+
+# Сборка только market-app
+./mvnw clean install -pl market-app
+
+# Сборка только payment-service  
+./mvnw clean install -pl payment-service
+
+# Сборка с пропуском тестов
+./mvnw clean install -DskipTests
+
+# Генерация OpenAPI клиента для market-app
+./mvnw generate-sources -pl market-app
+```
+
+### 🧪 Запуск тестов
+
+```bash
+# Запуск всех тестов
+./mvnw test
+
+# Тесты только market-app
+./mvnw test -pl market-app
+
+# Тесты только payment-service
+./mvnw test -pl payment-service
+
+# Запуск конкретного теста
+./mvnw test -pl market-app -Dtest=CartControllerTest
+
+# Запуск с покрытием
+./mvnw test jacoco:report -pl market-app
+```
+
+### 🚀 Локальный запуск
+
+#### Запуск основных сервисов
+
+```bash
+# Запуск payment-service (порт 8081)
+cd payment-service
+../mvnw spring-boot:run
+
+# Запуск market-app (порт 8080) в другом терминале
+cd market-app  
+../mvnw spring-boot:run
+```
+
+#### Запуск с Redis
+
+```bash
+# Запуск Redis через Docker
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# Или через системный Redis (если установлен)
+redis-server
+```
+
+#### Конфигурация для локальной разработки
+
+**market-app/application.properties:**
+```properties
+# База данных H2
+spring.datasource.url=jdbc:h2:mem:market;DB_CLOSE_DELAY=-1
+spring.datasource.username=sa
+spring.datasource.password=password
+
+# Redis (если запущен локально)
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+
+# Сервис платежей
+payment.service.url=http://localhost:8081
+```
+
+**payment-service/application.properties:**
+```properties
+# База данных H2
+spring.datasource.url=jdbc:h2:mem:payment;DB_CLOSE_DELAY=-1
+spring.datasource.username=sa
+spring.datasource.password=password
+
+# Начальный баланс
+payment.initial.balance=1000.00
+```
+
+### 🌐 Использование проекта
+
+#### Основные эндпоинты
+
+**market-app (http://localhost:8080):**
+- `GET /` - главная страница с товарами
+- `GET /items` - каталог товаров (JSON API)
+- `GET /cart/items` - корзина пользователя
+- `POST /cart/items` - изменение количества товаров
+- `POST /buy` - оформление заказа
+- `GET /orders` - список заказов
+- `GET /orders/{id}` - детализация заказа
+
+**payment-service (http://localhost:8081):**
+- `GET /api/balance` - текущий баланс
+- `POST /api/pay` - выполнение платежа
+- `GET /actuator/health` - проверка здоровья
+
+#### Примеры использования
+
+```bash
+# Получить каталог товаров
+curl http://localhost:8080/items
+
+# Добавить товар в корзину (через web интерфейс)
+# Открыть http://localhost:8080 и добавить товары
+
+# Оформить заказ
+curl -X POST http://localhost:8080/buy \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# Проверить баланс
+curl http://localhost:8081/api/balance
+
+# Выполнить платеж
+curl -X POST http://localhost:8081/api/pay \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 100.00}'
+```
+
+### 🔧 Полезные команды разработки
+
+```bash
+# Очистка и пересборка
+./mvnw clean compile
+
+# Форматирование кода (если настроено)
+./mvnw spotless:apply
+
+# Проверка зависимостей
+./mvnw dependency:tree
+
+# Анализ кода
+./mvnw sonar:sonar
+
+# Создание дистрибутива
+./mvnw clean package
+```
+
+### 🐛 Отладка
+
+#### IDE Configuration
+- **IntelliJ IDEA**: Import as Maven Project
+- **VS Code**: Maven for Java extension
+- **Eclipse**: Import as Existing Maven Project
+
+#### Health Checks
+```bash
+# Проверка доступности сервисов
+curl http://localhost:8080/actuator/health
+curl http://localhost:8081/actuator/health
+
+# Проверка Redis
+redis-cli ping
+```
+
+#### Логи
+```bash
+# Просмотр логов Spring Boot
+tail -f market-app/logs/spring.log
+
+# Логи в реальном времени
+./mvnw spring-boot:run | grep DEBUG
+```
+
+### 📊 Мониторинг
+
+#### Actuator Endpoints
+- `/actuator/health` - здоровье приложения
+- `/actuator/info` - информация о приложении  
+- `/actuator/metrics` - метрики производительности
+- `/actuator/env` - переменные окружения
+
+#### Базы данных
+- **H2 Console**: http://localhost:8080/h2-console (market-app)
+- **H2 Console**: http://localhost:8081/h2-console (payment-service)
+
+### 🚀 Продакшн развертывание
+
+```bash
+# Сборка Docker образов
+docker build -t market-app:latest ./market-app
+docker build -t payment-service:latest ./payment-service
+
+```
+
+### 📚 Дополнительные ресурсы
+
+- **Spring Boot Documentation**: https://docs.spring.io/spring-boot/
+- **Spring WebFlux Guide**: https://spring.io/guides/gs/reactive-rest-service/
+- **Docker Compose Reference**: https://docs.docker.com/compose/
+- **H2 Database**: http://www.h2database.com/html/main.html
+- **Redis Documentation**: https://redis.io/documentation

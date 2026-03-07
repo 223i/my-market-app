@@ -1,0 +1,91 @@
+services:
+  # База данных для market-app
+  market-db:
+    image: oscarfonts/h2:2.2.224
+    container_name: market-db
+    ports:
+      - "9092:9092"
+    environment:
+      - H2_DATABASE_URL=jdbc:h2:tcp://localhost/market
+      - H2_DATABASE_USER=sa
+      - H2_DATABASE_PASSWORD=password
+    volumes:
+      - market-data:/data
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+
+  # Redis для market-app
+  market-redis:
+    image: redis:7-alpine
+    container_name: market-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - market-redis-data:/data
+    command: redis-server --appendonly yes
+
+  # Основное приложение
+  market-app:
+    build:
+      context: .
+      dockerfile: market-app/Dockerfile
+    container_name: market-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=password
+      - SPRING_REDIS_HOST=market-redis
+      - SPRING_REDIS_PORT=6379
+      - PAYMENT_SERVICE_URL=http://payment-service:8081
+    depends_on:
+      - market-db
+      - market-redis
+      - payment-service
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # База данных для payment-service
+  payment-db:
+    image: oscarfonts/h2:2.2.224
+    container_name: payment-db
+    ports:
+      - "9093:9092"
+    environment:
+      - H2_DATABASE_URL=jdbc:h2:tcp://localhost/payment
+      - H2_DATABASE_USER=sa
+      - H2_DATABASE_PASSWORD=password
+    volumes:
+      - payment-data:/data
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+
+  # Сервис платежей
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: payment-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=r2dbc:h2:tcp://payment-db:9092/payment
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      - payment-db
+    volumes:
+      - ./payment-logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  market-data:
+    driver: local
+  market-redis-data:
+    driver: local
+  payment-data:
+    driver: local
+
+networks:
+  default:
+    name: market-network

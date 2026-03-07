@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.1.0
+
+servers:
+  - url: http://payment-service:8081
+
+paths:
+  /payments/balance:
+    get:
+      operationId: getCurrentUserBalance
+      summary: Get current user balance
+      description: Returns balance for authenticated user
+      responses:
+        '200':
+          description: Balance response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '401':
+          description: Unauthorized
+
+  /payments:
+    post:
+      operationId: performPayment
+      summary: Perform payment for current user
+      description: Deducts money from authenticated user's balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Unauthorized
+        '400':
+          description: Invalid request
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: double
+        currency:
+          type: string
+
+    PaymentRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: number
+          format: double
+
+    PaymentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        remainingBalance:
+          type: number
+          format: double
