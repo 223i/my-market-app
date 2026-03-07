@@ -9,9 +9,10 @@ COPY payment-api/pom.xml ./payment-api/
 
 RUN mvn dependency:go-offline
 
+COPY payment-api/src ./payment-api/src
 COPY payment-service/src ./payment-service/src
 
-RUN mvn clean package -DskipTests -pl payment-service
+RUN mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jdk
 

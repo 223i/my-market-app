@@ -6,14 +6,14 @@ WORKDIR /app
 # Копируем только pom файлы для кеширования зависимостей
 COPY pom.xml .
 COPY market-app/pom.xml ./market-app/
-COPY payment-service/pom.xml ./payment-service/
 COPY payment-api/pom.xml ./payment-api/
+COPY payment-service/pom.xml ./payment-service/
 
 RUN mvn dependency:go-offline
 
 COPY market-app/src ./market-app/src
-COPY payment-service/src ./payment-service/src
 COPY payment-api/src ./payment-api/src
+COPY payment-service/src ./payment-service/src
 
 # Собираем все модули
 RUN mvn clean package -DskipTests
