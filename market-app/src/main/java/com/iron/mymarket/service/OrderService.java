@@ -2,7 +2,7 @@ package com.iron.mymarket.service;
 
 import com.iron.mymarket.dao.entities.Order;
 import com.iron.mymarket.dao.entities.OrderItem;
-import com.iron.mymarket.dao.repository.CartStorage;
+import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.dao.repository.OrderItemRepository;
 import com.iron.mymarket.dao.repository.OrderRepository;

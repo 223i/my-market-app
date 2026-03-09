@@ -1,4 +1,4 @@
-package com.iron.mymarket.dao.repository;
+package com.iron.mymarket.dao.session;
 
 import lombok.Getter;
 

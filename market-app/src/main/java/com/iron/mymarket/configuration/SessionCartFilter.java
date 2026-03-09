@@ -1,6 +1,6 @@
 package com.iron.mymarket.configuration;
 
-import com.iron.mymarket.dao.repository.CartStorage;
+import com.iron.mymarket.dao.session.CartStorage;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;

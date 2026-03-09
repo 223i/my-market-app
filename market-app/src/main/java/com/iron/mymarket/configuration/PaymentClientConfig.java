@@ -1,4 +1,4 @@
-package com.iron.mymarket.config;
+package com.iron.mymarket.configuration;
 
 import com.iron.payment.client.api.DefaultApi;
 import com.iron.payment.client.ApiClient;

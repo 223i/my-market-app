@@ -1,7 +1,7 @@
 package com.iron.mymarket.integration;
 
 import com.iron.mymarket.dao.entities.Item;
-import com.iron.mymarket.dao.repository.CartStorage;
+import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
@@ -9,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.mockito.Mock;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import reactor.core.publisher.Mono;
