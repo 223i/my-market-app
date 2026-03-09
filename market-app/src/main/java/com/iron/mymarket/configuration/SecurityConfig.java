@@ -22,16 +22,16 @@ public class SecurityConfig {
                         .pathMatchers("/cart/**", "/orders/**").authenticated()
                         .anyExchange().authenticated()
                 )
+                .oauth2Login(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
                 );
         return http.build();
     }
-
     @Bean
     public ReactiveJwtAuthenticationConverter jwtAuthenticationConverter() {
         var jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        jwtGrantedAuthoritiesConverter.setAuthorityPrefix("ROLE_"); // Опционально, для HasRole¬
+//        jwtGrantedAuthoritiesConverter.setAuthorityPrefix("ROLE_"); // Опционально, для HasRole¬
 
         var converter = new ReactiveJwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(new ReactiveJwtGrantedAuthoritiesConverterAdapter(jwtGrantedAuthoritiesConverter));

@@ -95,6 +95,7 @@ services:
       retries: 5
     volumes:
       - ./keycloak_data:/opt/keycloak/data/h2
+      - ./realm-export.json:/opt/keycloak/data/import/realm.json:ro # Файл импорта настроек для теста
 
 
 volumes:
