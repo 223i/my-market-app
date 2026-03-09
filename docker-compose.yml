@@ -83,7 +83,7 @@ services:
     image: quay.io/keycloak/keycloak:24.0
     command: start-dev
     environment:
-      # Для входа в UI будут использоваться эти параметры
+      KC_DB: dev-file
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
@@ -93,6 +93,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./keycloak_data:/opt/keycloak/data/h2
 
 
 volumes:
