@@ -31,7 +31,6 @@ public class SecurityConfig {
     @Bean
     public ReactiveJwtAuthenticationConverter jwtAuthenticationConverter() {
         var jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-//        jwtGrantedAuthoritiesConverter.setAuthorityPrefix("ROLE_"); // Опционально, для HasRole¬
 
         var converter = new ReactiveJwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(new ReactiveJwtGrantedAuthoritiesConverterAdapter(jwtGrantedAuthoritiesConverter));
