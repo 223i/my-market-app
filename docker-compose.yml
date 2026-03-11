@@ -32,6 +32,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=password
@@ -42,6 +43,7 @@ services:
       - market-db
       - market-redis
       - payment-service
+      - keycloak
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
@@ -81,7 +83,7 @@ services:
   # Сервер авторизации (Keycloak)
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KC_DB: dev-file
       KEYCLOAK_ADMIN: admin
@@ -92,10 +94,11 @@ services:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/realms/market-app-realm/.well-known/openid-configuration" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 30
+      start_period: 60s
     volumes:
       - ./keycloak_data:/opt/keycloak/data/h2
-      - ./realm-export.json:/opt/keycloak/data/import/realm.json:ro # Файл импорта настроек для теста
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
 
 
 volumes:
