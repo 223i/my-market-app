@@ -18,6 +18,9 @@ public class User {
     private String email;
     private String username;
 
+    public User() {
+    }
+
     public User(String externalId, String email, String name) {
         this.externalId = externalId;
         this.email = email;

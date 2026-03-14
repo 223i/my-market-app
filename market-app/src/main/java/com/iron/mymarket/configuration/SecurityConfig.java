@@ -1,12 +1,19 @@
 package com.iron.mymarket.configuration;
 
+import com.iron.mymarket.dao.repository.UserRepository;
+import com.iron.mymarket.service.CustomOidcUserService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.endpoint.WebClientReactiveAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcAuthorizationCodeReactiveAuthenticationManager;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.userinfo.ReactiveOAuth2UserService;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 import java.net.URI;
@@ -22,7 +29,14 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http, CustomOidcUserService oidcUserService) {
+        var tokenResponseClient = new WebClientReactiveAuthorizationCodeTokenResponseClient();
+
+        var authManager = new OidcAuthorizationCodeReactiveAuthenticationManager(
+                tokenResponseClient,
+                oidcUserService
+        );
+
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
@@ -32,7 +46,7 @@ public class SecurityConfig {
                         .anyExchange().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/auth/login")
+                        .authenticationManager(authManager)
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
@@ -40,9 +54,10 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutUrl("/auth/logout")
                         .logoutSuccessHandler((exchange, authentication) -> {
-                            exchange.getExchange().getResponse().getHeaders().setLocation(URI.create("/items?logout=true"));
-                            exchange.getExchange().getResponse().setStatusCode(org.springframework.http.HttpStatus.FOUND);
-                            return exchange.getExchange().getResponse().setComplete();
+                            var response = exchange.getExchange().getResponse();
+                            response.getHeaders().setLocation(URI.create("/items?logout=true"));
+                            response.setStatusCode(org.springframework.http.HttpStatus.FOUND);
+                            return response.setComplete();
                         })
                 );
         return http.build();
