@@ -19,13 +19,11 @@
                         </h4>
                     </div>
                     <div class="card-body">
-                        <!-- Сообщение об ошибке -->
-                        <div th:if="${param.error}" class="alert alert-danger">
+                        <!-- Сообщения -->
+                        <div th:if="${error}" class="alert alert-danger">
                             Неверное имя пользователя или пароль
                         </div>
-                        
-                        <!-- Сообщение о выходе -->
-                        <div th:if="${param.logout}" class="alert alert-success">
+                        <div th:if="${logout and not error}" class="alert alert-success">
                             Вы успешно вышли из системы
                         </div>
 
