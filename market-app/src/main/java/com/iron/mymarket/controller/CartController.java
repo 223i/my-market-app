@@ -43,7 +43,7 @@ public class CartController {
         String externalId = principal.getAttribute("sub");
 
         // 2. Если залогинен — идем в БД за нашим внутренним ID
-        return userRepository.findByExternalId(externalId)
+        return userRepository.findByExternalId(externalId)//TODO: заменить на сервис
                 .flatMap(user -> Mono.zip(
                         paymentHealthService.isPaymentServiceAvailable(),
                         cartService.getTotal(user.getId()),
