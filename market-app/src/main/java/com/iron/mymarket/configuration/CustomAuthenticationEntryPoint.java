@@ -1,5 +1,6 @@
 package com.iron.mymarket.configuration;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -15,10 +16,10 @@ public class CustomAuthenticationEntryPoint implements ServerAuthenticationEntry
         
         if (path.startsWith("/cart/") || path.startsWith("/orders/")) {
             exchange.getResponse().getHeaders().setLocation(java.net.URI.create("/auth/login"));
-            exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.FOUND);
+            exchange.getResponse().setStatusCode(HttpStatus.FOUND);
             return exchange.getResponse().setComplete();
         }
-        exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         return exchange.getResponse().setComplete();
     }
 }
