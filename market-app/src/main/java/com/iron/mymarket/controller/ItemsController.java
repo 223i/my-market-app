@@ -94,6 +94,21 @@ public class ItemsController {
     }
 
 
+    @PostMapping("/items/{id}")
+    public Mono<Rendering> postItemById(@PathVariable Long id, ServerWebExchange exchange, WebSession session) {
+        return exchange.getFormData().flatMap(formData -> {
+            ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
+            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
+
+            return cartService.changeItemCount(id, action, cart)
+                    .flatMap(updatedCart -> {
+                        session.getAttributes().put("cart", updatedCart);
+                        return session.save();
+                    })
+                    .then(Mono.just(Rendering.redirectTo("/items/" + id).build()));
+        });
+    }
+
     @GetMapping("/items/{id}")
     public Mono<Rendering> getItemById(@PathVariable Long id) {
         return ReactiveSecurityContextHolder.getContext()

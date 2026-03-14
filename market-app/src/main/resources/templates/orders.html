@@ -16,9 +16,7 @@
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <form th:if="${isAuthenticated}" action="/auth/logout" method="post" style="display: inline;">
-                        <button type="submit" class="btn btn-danger bi bi-box-arrow-right ms-auto"> Выйти</button>
-                    </form>
+                    <a th:if="${isAuthenticated}" href="/auth/logout" class="btn btn-danger bi bi-box-arrow-right ms-auto"> Выйти</a>
                     <a th:if="${isAuthenticated}" href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
                 </div>
