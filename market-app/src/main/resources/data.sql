@@ -18,5 +18,5 @@ INSERT INTO items (title, description, img_path, price, count) VALUES ('External
 
 INSERT INTO items (title, description, img_path, price, count) VALUES ('USB-C Hub', 'Multiport USB-C hub with HDMI and Ethernet', 'usb_c_hub.jpg', 4900, 35);
 
-MERGE INTO users (external_id, username, email, password) KEY (external_id)
-VALUES ('fe59a4ce-5b96-4edf-a023-6c2076c22d5d', 'test_user', 'test@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
+-- MERGE INTO users (external_id, username, email, password) KEY (external_id)
+-- VALUES ('fe59a4ce-5b96-4edf-a023-6c2076c22d5d', 'test_user', 'test@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');

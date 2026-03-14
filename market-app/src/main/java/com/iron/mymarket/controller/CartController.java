@@ -1,11 +1,15 @@
 package com.iron.mymarket.controller;
 
+import com.iron.mymarket.dao.repository.UserRepository;
 import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.model.ItemAction;
+import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,78 +27,83 @@ public class CartController {
 
     private final CartService cartService;
     private final PaymentHealthService paymentHealthService;
+    private final UserRepository userRepository;
 
-    public CartController(CartService cartService, PaymentHealthService paymentHealthService) {
+    public CartController(CartService cartService, PaymentHealthService paymentHealthService, UserRepository userRepository) {
         this.cartService = cartService;
         this.paymentHealthService = paymentHealthService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/cart/items")
-    public Mono<Rendering> getItemsInCart(WebSession session) {
-        CartStorage cart = session.getAttribute("cart");
+    public Mono<Rendering> getItemsInCart(@AuthenticationPrincipal OAuth2User principal) {
+        // 1. Если пользователя нет (не залогинен), возвращаем пустые данные или редирект
+        if (principal == null) {
+            return Mono.zip(paymentHealthService.isPaymentServiceAvailable(), Mono.just(0L), Mono.just(List.of()))
+                    .map(tuple -> buildRendering(false, tuple.getT1(), tuple.getT2(), tuple.getT3()));
+        }
 
-        return ReactiveSecurityContextHolder.getContext()
-                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
-                .defaultIfEmpty(false)
-                .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                .zipWith(cartService.getTotal(cart != null ? cart : new CartStorage()))
-                .zipWith(cartService.getCartItems(cart != null ? cart : new CartStorage()).collectList())
-                .map(tuple -> {
-                    Boolean isAuthenticated = tuple.getT1().getT1().getT1();
-                    Boolean isPaymentAvailable = tuple.getT1().getT1().getT2();
-                    Long total = tuple.getT1().getT2();
-                    List items = tuple.getT2();
-                    
-                    return Rendering.view("cart")
-                            .modelAttribute("items", items)
-                            .modelAttribute("total", total)
-                            .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
-                            .modelAttribute("isAuthenticated", isAuthenticated)
-                            .modelAttribute("paymentServiceMessage", 
-                                    isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                            .build();
-                });
+        String externalId = principal.getAttribute("sub");
+
+        // 2. Если залогинен — идем в БД за нашим внутренним ID
+        return userRepository.findByExternalId(externalId)
+                .flatMap(user -> Mono.zip(
+                        paymentHealthService.isPaymentServiceAvailable(),
+                        cartService.getTotal(user.getId()),
+                        cartService.getCartItems(user.getId()).collectList()
+                ))
+                .map(tuple -> buildRendering(true, tuple.getT1(), tuple.getT2(), tuple.getT3()));
     }
 
     @PostMapping("/cart/items")
-    public Mono<Rendering> changeItemCountOnCartPage(ServerWebExchange exchange, WebSession session) {
+    public Mono<Rendering> changeItemCountOnCartPage(
+            @AuthenticationPrincipal OAuth2User principal,
+            ServerWebExchange exchange) {
+
         return exchange.getFormData().flatMap(formData -> {
-            long id;
+            // 1. Валидация входных данных
+            long itemId;
             ItemAction action;
             try {
-                id = Long.parseLong(Objects.requireNonNull(formData.getFirst("id")));
+                itemId = Long.parseLong(Objects.requireNonNull(formData.getFirst("id")));
                 action = ItemAction.valueOf(formData.getFirst("action"));
             } catch (IllegalArgumentException | NullPointerException e) {
                 return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid params"));
             }
-            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-            return cartService.changeItemCount(id, action, cart)
-                    .flatMap(updatedCart -> {
-                        session.getAttributes().put("cart", updatedCart);
-                        return session.save();
-                    })
-                    .then(ReactiveSecurityContextHolder.getContext()
-                            .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
-                            .defaultIfEmpty(false)
-                            .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                            .zipWith(cartService.getTotal(cart))
-                            .zipWith(cartService.getCartItems(cart).collectList())
+            if (principal == null) {
+                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+            }
+
+            String externalId = principal.getAttribute("sub");
+
+            // 2. Основная логика: Найти юзера -> Изменить товар -> Собрать данные для рендеринга
+            return userRepository.findByExternalId(externalId)
+                    .flatMap(user -> cartService.changeItemCount(itemId, action, user.getId())
+                            .then(Mono.zip(
+                                    paymentHealthService.isPaymentServiceAvailable(),
+                                    cartService.getCartItems(user.getId()).collectList(),
+                                    cartService.getTotal(user.getId())
+                            ))
                             .map(tuple -> {
-                                Boolean isAuthenticated = tuple.getT1().getT1().getT1();
-                                Boolean isPaymentAvailable = tuple.getT1().getT1().getT2();
-                                Long total = tuple.getT1().getT2();
-                                List items = tuple.getT2();
-                                
-                                return Rendering.view("cart")
-                                        .modelAttribute("items", items)
-                                        .modelAttribute("total", total)
-                                        .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
-                                        .modelAttribute("isAuthenticated", isAuthenticated)
-                                        .modelAttribute("paymentServiceMessage", 
-                                                isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                        .build();
-                            }));
+                                boolean isPayAvailable = tuple.getT1();
+                                List<ItemDto> items = tuple.getT2();
+                                Long total = tuple.getT3();
+
+                                return buildRendering(true, isPayAvailable, total, items);
+                            })
+                    );
         });
+    }
+
+    private Rendering buildRendering(boolean isAuth, boolean isPayAvailable, Long total, List<?> items) {
+        return Rendering.view("cart")
+                .modelAttribute("items", items)
+                .modelAttribute("total", total)
+                .modelAttribute("paymentServiceAvailable", isPayAvailable)
+                .modelAttribute("isAuthenticated", isAuth)
+                .modelAttribute("paymentServiceMessage",
+                        isPayAvailable ? null : "Сервис оплаты временно недоступен.")
+                .build();
     }
 }

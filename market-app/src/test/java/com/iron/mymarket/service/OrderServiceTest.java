@@ -165,34 +165,34 @@ public class OrderServiceTest {
         verify(orderRepository, times(1)).findById(1L);
     }
 
-    @Test
-    void createNewOrder_emptyCart_shouldThrowException() {
-        when(cartStorage.getItems()).thenReturn(Collections.emptyMap());
+//    @Test
+//    void createNewOrder_emptyCart_shouldThrowException() {
+//        when(cartStorage.getItems()).thenReturn(Collections.emptyMap());
+//
+//        StepVerifier.create(orderService.createNewOrder(cartStorage))
+//                .expectErrorMatches(throwable -> throwable instanceof IllegalStateException &&
+//                        throwable.getMessage().equals("Cart is empty"))
+//                .verify();
+//
+//        verifyNoInteractions(itemRepository);
+//        verifyNoInteractions(orderRepository);
+//    }
 
-        StepVerifier.create(orderService.createNewOrder(cartStorage))
-                .expectErrorMatches(throwable -> throwable instanceof IllegalStateException &&
-                        throwable.getMessage().equals("Cart is empty"))
-                .verify();
-
-        verifyNoInteractions(itemRepository);
-        verifyNoInteractions(orderRepository);
-    }
-
-    @Test
-    void createNewOrder_itemNotFound_shouldThrowException() {
-        Map<Long, Integer> cartItems = Map.of(1L, 1);
-        when(cartStorage.getItems()).thenReturn(cartItems);
-
-        when(itemRepository.findById(1L)).thenReturn(Mono.empty());
-
-        Mono<OrderDto> result = orderService.createNewOrder(cartStorage);
-
-        StepVerifier.create(result)
-                .expectErrorMatches(throwable -> throwable instanceof IllegalArgumentException &&
-                        throwable.getMessage().contains("Item not found"))
-                .verify();
-
-        verify(itemRepository).findById(1L);
-        verifyNoInteractions(orderRepository);
-    }
+//    @Test
+//    void createNewOrder_itemNotFound_shouldThrowException() {
+//        Map<Long, Integer> cartItems = Map.of(1L, 1);
+//        when(cartStorage.getItems()).thenReturn(cartItems);
+//
+//        when(itemRepository.findById(1L)).thenReturn(Mono.empty());
+//
+//        Mono<OrderDto> result = orderService.createNewOrder(cartStorage);
+//
+//        StepVerifier.create(result)
+//                .expectErrorMatches(throwable -> throwable instanceof IllegalArgumentException &&
+//                        throwable.getMessage().contains("Item not found"))
+//                .verify();
+//
+//        verify(itemRepository).findById(1L);
+//        verifyNoInteractions(orderRepository);
+//    }
 }

@@ -1,6 +1,5 @@
 package com.iron.mymarket.controller;
 
-import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
@@ -8,8 +7,9 @@ import com.iron.mymarket.model.Paging;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.ItemService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.result.view.Rendering;
 import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebSession;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -77,35 +76,44 @@ public class ItemsController {
     }
 
     @PostMapping("/items")
-    public Mono<Rendering> postItemNumberInCart(ServerWebExchange exchange, WebSession session) {
+    public Mono<Rendering> postItemNumberInCart(ServerWebExchange exchange,
+                                                @AuthenticationPrincipal OAuth2User principal) {
+        // Если путь permitAll, principal может быть null
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
+        }
+
+        // Извлекаем наш ID, добавленный в сервисе выше
+        Long userId = principal.getAttribute("internal_id");
 
         return exchange.getFormData().flatMap(formData -> {
             Long id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
-            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-            return cartService.changeItemCount(id, action, cart)
-                    .flatMap(updatedCart -> {
-                        session.getAttributes().put("cart", updatedCart);
-                        return session.save();
-                    })
+            return cartService.changeItemCount(id, action, userId)
                     .then(Mono.just(Rendering.redirectTo(getRedirectUri(formData).toString()).build()));
         });
     }
 
 
     @PostMapping("/items/{id}")
-    public Mono<Rendering> postItemById(@PathVariable Long id, ServerWebExchange exchange, WebSession session) {
+    public Mono<Rendering> postItemById(@PathVariable Long id, ServerWebExchange exchange,
+                                        @AuthenticationPrincipal OAuth2User principal) {
+
+        // Если путь permitAll, principal может быть null
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
+        }
+
+        // Извлекаем наш ID, добавленный в сервисе выше
+        Long userId = principal.getAttribute("internal_id");
+
         return exchange.getFormData().flatMap(formData -> {
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
-            CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-            return cartService.changeItemCount(id, action, cart)
-                    .flatMap(updatedCart -> {
-                        session.getAttributes().put("cart", updatedCart);
-                        return session.save();
-                    })
-                    .then(Mono.just(Rendering.redirectTo("/items/" + id).build()));
+            // Просто вызываем сервис, передавая уже готовый Long userId
+            return cartService.changeItemCount(id, action, userId)
+                    .thenReturn(Rendering.redirectTo("/items/" + id).build());
         });
     }
 

@@ -4,8 +4,10 @@ import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.service.OrderService;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,53 +57,45 @@ public class OrdersController {
     }
 
     @PostMapping("/buy")
-    public Mono<Rendering> createNewOrder(WebSession session) {
-
-        CartStorage cart = session.getAttribute("cart");
-        if (cart == null || cart.getItems().isEmpty()) {
-            return cartService.getCartItems(cart != null ? cart : new CartStorage())
-                    .collectList()
-                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                    .map(tuple -> Rendering.view("cart")
-                            .modelAttribute("error", "Cart is empty")
-                            .modelAttribute("items", tuple.getT1())
-                            .modelAttribute("total", 0L)
-                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
-                            .modelAttribute("paymentServiceMessage", 
-                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                            .build());
+    public Mono<Rendering> createNewOrder(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
+        Long userId = principal.getAttribute("internal_id");
 
-        return paymentHealthService.isPaymentServiceAvailable()
-                .flatMap(isAvailable -> {
-                    if (!isAvailable) {
-                        return cartService.getCartItems(cart)
-                                .collectList()
-                                .zipWith(cartService.getTotal(cart))
-                                .map(tuple -> Rendering.view("cart")
-                                        .modelAttribute("error", "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                        .modelAttribute("items", tuple.getT1())
-                                        .modelAttribute("total", tuple.getT2())
-                                        .modelAttribute("paymentServiceAvailable", false)
-                                        .modelAttribute("paymentServiceMessage", "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                        .build());
+        // 1. Проверяем, не пуста ли корзина в БД
+        return cartService.getCartItems(userId).collectList()
+                .flatMap(items -> {
+                    if (items.isEmpty()) {
+                        return renderCartWithError(userId, "Ваша корзина пуста", true);
                     }
 
-                    return orderService.createNewOrderWithPayment(cart)
-                            .flatMap(createdOrder -> session.save()
-                                    .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true").build()))
-                            .onErrorResume(e -> cartService.getCartItems(cart)
-                                    .collectList()
-                                    .zipWith(cartService.getTotal(cart))
-                                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                                    .map(tuple -> Rendering.view("cart")
-                                            .modelAttribute("error", e.getMessage())
-                                            .modelAttribute("items", tuple.getT1().getT1())
-                                            .modelAttribute("total", tuple.getT1().getT2())
-                                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
-                                            .modelAttribute("paymentServiceMessage", 
-                                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                            .build()));
+                    // 2. Проверяем доступность сервиса оплаты
+                    return paymentHealthService.isPaymentServiceAvailable()
+                            .flatMap(isAvailable -> {
+                                if (!isAvailable) {
+                                    return renderCartWithError(userId, "Сервис оплаты временно недоступен", false);
+                                }
+
+                                // 3. Создаем заказ (orderService теперь тоже должен принимать userId вместо CartStorage)
+                                return orderService.createNewOrderWithPayment(userId)
+                                        .map(order -> Rendering.redirectTo("/orders/" + order.getId() + "?newOrder=true").build())
+                                        .onErrorResume(e -> renderCartWithError(userId, e.getMessage(), true));
+                            });
                 });
+    }
+
+    // Вспомогательный метод для рендеринга ошибок, чтобы не дублировать код
+    private Mono<Rendering> renderCartWithError(Long userId, String error, boolean isPayAvailable) {
+        return Mono.zip(
+                cartService.getCartItems(userId).collectList(),
+                cartService.getTotal(userId)
+        ).map(tuple -> Rendering.view("cart")
+                .modelAttribute("error", error)
+                .modelAttribute("items", tuple.getT1())
+                .modelAttribute("total", tuple.getT2())
+                .modelAttribute("paymentServiceAvailable", isPayAvailable)
+                .modelAttribute("isAuthenticated", true)
+                .build());
     }
 }
