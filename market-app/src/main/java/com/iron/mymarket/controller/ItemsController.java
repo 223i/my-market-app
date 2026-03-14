@@ -83,14 +83,13 @@ public class ItemsController {
             return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
 
-        // Извлекаем наш ID, добавленный в сервисе выше
-        Long userId = principal.getAttribute("internal_id");
+        String externalId = principal.getAttribute("sub");
 
         return exchange.getFormData().flatMap(formData -> {
             Long id = Long.valueOf(Objects.requireNonNull(formData.getFirst("id")));
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
 
-            return cartService.changeItemCount(id, action, userId)
+            return cartService.changeItemCountByExternalId(id, action, externalId)
                     .then(Mono.just(Rendering.redirectTo(getRedirectUri(formData).toString()).build()));
         });
     }

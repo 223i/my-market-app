@@ -1,14 +1,12 @@
 package com.iron.mymarket.controller;
 
 import com.iron.mymarket.dao.repository.UserRepository;
-import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +14,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.reactive.result.view.Rendering;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
