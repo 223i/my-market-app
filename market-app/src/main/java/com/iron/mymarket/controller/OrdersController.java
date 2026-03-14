@@ -4,6 +4,7 @@ import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.service.OrderService;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,18 +31,26 @@ public class OrdersController {
 
     @GetMapping("/orders")
     public Mono<Rendering> getOrders() {
-        return Mono.just(Rendering.view("orders")
-                .modelAttribute("orders", orderService.findOrders())
-                .build());
+        return ReactiveSecurityContextHolder.getContext()
+                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false)
+                .map(isAuthenticated -> Rendering.view("orders")
+                        .modelAttribute("orders", orderService.findOrders())
+                        .modelAttribute("isAuthenticated", isAuthenticated)
+                        .build());
     }
 
     @GetMapping("/orders/{id}")
     public Mono<Rendering> getOrderById(@PathVariable Long id,
                                         @RequestParam(required = false,
                                                 value = "newOrder", defaultValue = "false") Boolean newOrder) {
-        return orderService.findOrderById(id)
-                .map(order -> Rendering.view("order")
-                        .modelAttribute("order", order)
+        return ReactiveSecurityContextHolder.getContext()
+                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false)
+                .zipWith(orderService.findOrderById(id))
+                .map(tuple -> Rendering.view("order")
+                        .modelAttribute("order", tuple.getT2())
+                        .modelAttribute("isAuthenticated", tuple.getT1())
                         .build());
     }
 

@@ -4,6 +4,7 @@ import com.iron.mymarket.dao.session.CartStorage;
 import com.iron.mymarket.model.ItemAction;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,11 +33,15 @@ public class CartController {
     public Mono<Rendering> getItemsInCart(WebSession session) {
         CartStorage cart = session.getAttribute("cart");
 
-        return paymentHealthService.isPaymentServiceAvailable()
+        return ReactiveSecurityContextHolder.getContext()
+                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false)
+                .zipWith(paymentHealthService.isPaymentServiceAvailable())
                 .zipWith(cartService.getTotal(cart != null ? cart : new CartStorage()))
                 .zipWith(cartService.getCartItems(cart != null ? cart : new CartStorage()).collectList())
                 .map(tuple -> {
-                    Boolean isPaymentAvailable = tuple.getT1().getT1();
+                    Boolean isAuthenticated = tuple.getT1().getT1().getT1();
+                    Boolean isPaymentAvailable = tuple.getT1().getT1().getT2();
                     Long total = tuple.getT1().getT2();
                     List items = tuple.getT2();
                     
@@ -44,6 +49,7 @@ public class CartController {
                             .modelAttribute("items", items)
                             .modelAttribute("total", total)
                             .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
+                            .modelAttribute("isAuthenticated", isAuthenticated)
                             .modelAttribute("paymentServiceMessage", 
                                     isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
                             .build();
@@ -63,28 +69,32 @@ public class CartController {
             }
             CartStorage cart = session.getAttributeOrDefault("cart", new CartStorage());
 
-
             return cartService.changeItemCount(id, action, cart)
                     .flatMap(updatedCart -> {
                         session.getAttributes().put("cart", updatedCart);
                         return session.save();
                     })
-                    .then(paymentHealthService.isPaymentServiceAvailable()
-                    .zipWith(cartService.getTotal(cart))
-                    .zipWith(cartService.getCartItems(cart).collectList())
-                    .map(tuple -> {
-                        Boolean isPaymentAvailable = tuple.getT1().getT1();
-                        Long total = tuple.getT1().getT2();
-                        List items = tuple.getT2();
-                        
-                        return Rendering.view("cart")
-                                .modelAttribute("items", items)
-                                .modelAttribute("total", total)
-                                .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
-                                .modelAttribute("paymentServiceMessage", 
-                                        isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                .build();
-                    }));
+                    .then(ReactiveSecurityContextHolder.getContext()
+                            .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                            .defaultIfEmpty(false)
+                            .zipWith(paymentHealthService.isPaymentServiceAvailable())
+                            .zipWith(cartService.getTotal(cart))
+                            .zipWith(cartService.getCartItems(cart).collectList())
+                            .map(tuple -> {
+                                Boolean isAuthenticated = tuple.getT1().getT1().getT1();
+                                Boolean isPaymentAvailable = tuple.getT1().getT1().getT2();
+                                Long total = tuple.getT1().getT2();
+                                List items = tuple.getT2();
+                                
+                                return Rendering.view("cart")
+                                        .modelAttribute("items", items)
+                                        .modelAttribute("total", total)
+                                        .modelAttribute("paymentServiceAvailable", isPaymentAvailable)
+                                        .modelAttribute("isAuthenticated", isAuthenticated)
+                                        .modelAttribute("paymentServiceMessage", 
+                                                isPaymentAvailable ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
+                                        .build();
+                            }));
         });
     }
 }

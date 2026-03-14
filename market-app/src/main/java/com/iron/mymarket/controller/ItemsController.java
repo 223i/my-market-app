@@ -8,6 +8,8 @@ import com.iron.mymarket.model.Paging;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.ItemService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,16 +46,18 @@ public class ItemsController {
                                     @RequestParam(value = "pageNumber", defaultValue = "1") Integer pageNumber,
                                     @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize) {
 
-
-
         Flux<ItemDto> items = itemService.findItems(search, sort, pageNumber, pageSize + 1);
         List<Integer> pageSizes = List.of(2, 5, 10, 20, 50, 100);
 
-        return items.collectList()
-                .defaultIfEmpty(Collections.emptyList())
-                .flatMap(itemsDto -> {
-                    boolean hasNext = itemsDto.size() > pageSize;
-                    List<ItemDto> pageItems = itemsDto.stream().limit(pageSize).toList();
+        return ReactiveSecurityContextHolder.getContext()
+                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false)
+                .zipWith(items.collectList().defaultIfEmpty(Collections.emptyList()))
+                .flatMap(tuple -> {
+                    boolean isAuthenticated = tuple.getT1();
+                    List<ItemDto> itemsList = tuple.getT2();
+                    boolean hasNext = itemsList.size() > pageSize;
+                    List<ItemDto> pageItems = itemsList.stream().limit(pageSize).toList();
                     return Mono.just(Rendering.view("items")
                             .modelAttribute("items", toRows(Flux.fromIterable(pageItems), 3))
                             .modelAttribute("search", search)
@@ -65,6 +69,7 @@ public class ItemsController {
                                     hasNext
                             ))
                             .modelAttribute("pageSizes", pageSizes)
+                            .modelAttribute("isAuthenticated", isAuthenticated)
                             .build());
                 });
     }
@@ -89,10 +94,17 @@ public class ItemsController {
 
     @GetMapping("/items/{id}")
     public Mono<Rendering> getItemById(@PathVariable Long id) {
-        return itemService.getItemById(id)
-                .map(itemDto -> Rendering.view("item")
-                        .modelAttribute("item", itemDto)
-                        .build());
+        return ReactiveSecurityContextHolder.getContext()
+                .map(securityContext -> securityContext.getAuthentication() != null && securityContext.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false)
+                .zipWith(itemService.getItemById(id))
+                .flatMap(tuple -> {
+                    boolean isAuthenticated = tuple.getT1();
+                    return Mono.just(Rendering.view("item")
+                            .modelAttribute("item", tuple.getT2())
+                            .modelAttribute("isAuthenticated", isAuthenticated)
+                            .build());
+                });
     }
 
     private Flux<List<ItemDto>> toRows(Flux<ItemDto> items, int rowSize) {
