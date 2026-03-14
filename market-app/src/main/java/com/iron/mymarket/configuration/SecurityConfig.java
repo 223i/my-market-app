@@ -18,7 +18,8 @@ public class SecurityConfig {
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/", "/items", "/auth/login", "/login/oauth2/code/keycloak").permitAll()
+                        .pathMatchers("/", "/items", "/auth/login", "/login/oauth2/code/keycloak",
+                                "/img/**", "/css/**", "/js/**", "/static/**", "/public/**", "/resources/**").permitAll()
                         .pathMatchers("/cart/**", "/orders/**").authenticated()
                         .anyExchange().authenticated()
                 )
