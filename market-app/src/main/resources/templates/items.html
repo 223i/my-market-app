@@ -12,14 +12,22 @@
     <form id="main">
     </form>
     <div class="container p-2">
+        <!-- Сообщение об успешном выходе -->
+        <div th:if="${logout}" class="alert alert-success alert-dismissible fade show" role="alert">
+            Вы успешно вышли из системы!
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        
         <div class="row p-2">
             <div class="col">
                 <div class="hstack gap-3">
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
+                    <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary bi bi-file-earmark-text"> Заказы</a>
                     <a th:if="${isAuthenticated}" href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+                    <a th:if="${isAuthenticated}" href="/auth/logout" class="btn btn-danger bi bi-box-arrow-right"> Выйти</a>
+                    <a th:unless="${isAuthenticated}" href="/auth/login" class="btn btn-primary ms-auto bi bi-box-arrow-in-right"> Войти</a>
                 </div>
             </div>
         </div>

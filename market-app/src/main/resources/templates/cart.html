@@ -17,6 +17,7 @@
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
                     <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
+                    <a th:if="${isAuthenticated}" href="/auth/logout" class="btn btn-danger bi bi-box-arrow-right"> Выйти</a>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
                 </div>
             </div>

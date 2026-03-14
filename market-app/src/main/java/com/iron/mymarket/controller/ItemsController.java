@@ -44,7 +44,8 @@ public class ItemsController {
     public Mono<Rendering> getItems(@RequestParam(value = "search", defaultValue = "") String search,
                                     @RequestParam(value = "sort", defaultValue = "NO") ItemSort sort,
                                     @RequestParam(value = "pageNumber", defaultValue = "1") Integer pageNumber,
-                                    @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize) {
+                                    @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
+                                    @RequestParam(value = "logout", required = false) String logout) {
 
         Flux<ItemDto> items = itemService.findItems(search, sort, pageNumber, pageSize + 1);
         List<Integer> pageSizes = List.of(2, 5, 10, 20, 50, 100);
@@ -70,6 +71,7 @@ public class ItemsController {
                             ))
                             .modelAttribute("pageSizes", pageSizes)
                             .modelAttribute("isAuthenticated", isAuthenticated)
+                            .modelAttribute("logout", logout != null)
                             .build());
                 });
     }

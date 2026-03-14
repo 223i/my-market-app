@@ -18,6 +18,8 @@
                     </h2>
                     <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
                     <a th:if="${isAuthenticated}" href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+                    <a th:if="${isAuthenticated}" href="/auth/logout" class="btn btn-danger bi bi-box-arrow-right"> Выйти</a>
+                    <a th:unless="${isAuthenticated}" href="/auth/login" class="btn btn-primary bi bi-box-arrow-in-right"> Войти</a>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
                 </div>
             </div>
