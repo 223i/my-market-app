@@ -1,10 +1,9 @@
 package com.iron.mymarket.controller;
 
-import com.iron.mymarket.dao.repository.UserRepository;
 import com.iron.mymarket.model.ItemAction;
-import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.service.CartService;
 import com.iron.mymarket.service.PaymentHealthService;
+import com.iron.mymarket.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -24,32 +23,32 @@ public class CartController {
 
     private final CartService cartService;
     private final PaymentHealthService paymentHealthService;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
-    public CartController(CartService cartService, PaymentHealthService paymentHealthService, UserRepository userRepository) {
+    public CartController(CartService cartService, PaymentHealthService paymentHealthService, UserService userService) {
         this.cartService = cartService;
         this.paymentHealthService = paymentHealthService;
-        this.userRepository = userRepository;
+        this.userService = userService;
     }
 
     @GetMapping("/cart/items")
     public Mono<Rendering> getItemsInCart(@AuthenticationPrincipal OAuth2User principal) {
-        // 1. Если пользователя нет (не залогинен), возвращаем пустые данные или редирект
+        // 1. Если пользователя нет (не залогинен), возвращаем редирект
         if (principal == null) {
-            return Mono.zip(paymentHealthService.isPaymentServiceAvailable(), Mono.just(0L), Mono.just(List.of()))
-                    .map(tuple -> buildRendering(false, tuple.getT1(), tuple.getT2(), tuple.getT3()));
+            return redirectToLoginWithError();
         }
 
         String externalId = principal.getAttribute("sub");
 
         // 2. Если залогинен — идем в БД за нашим внутренним ID
-        return userRepository.findByExternalId(externalId)//TODO: заменить на сервис
+        return userService.findByExternalId(externalId)
                 .flatMap(user -> Mono.zip(
                         paymentHealthService.isPaymentServiceAvailable(),
                         cartService.getTotal(user.getId()),
                         cartService.getCartItems(user.getId()).collectList()
                 ))
-                .map(tuple -> buildRendering(true, tuple.getT1(), tuple.getT2(), tuple.getT3()));
+                .map(tuple -> buildRendering(true, tuple.getT1(), tuple.getT2(), tuple.getT3()))
+                .switchIfEmpty(redirectToLoginWithError());
     }
 
     @PostMapping("/cart/items")
@@ -57,39 +56,28 @@ public class CartController {
             @AuthenticationPrincipal OAuth2User principal,
             ServerWebExchange exchange) {
 
+        if (principal == null) {
+            return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        }
+
         return exchange.getFormData().flatMap(formData -> {
-            // 1. Валидация входных данных
-            long itemId;
-            ItemAction action;
             try {
-                itemId = Long.parseLong(Objects.requireNonNull(formData.getFirst("id")));
-                action = ItemAction.valueOf(formData.getFirst("action"));
+                long itemId = Long.parseLong(Objects.requireNonNull(formData.getFirst("id")));
+                ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
+
+                return userService.findByExternalId(principal.getAttribute("sub"))
+                        .flatMap(user -> cartService.changeItemCount(itemId, action, user.getId())
+                                .then(Mono.zip(
+                                        paymentHealthService.isPaymentServiceAvailable(),
+                                        cartService.getTotal(user.getId()),
+                                        cartService.getCartItems(user.getId()).collectList()
+                                ))
+                                .map(t -> buildRendering(true, t.getT1(), t.getT2(), t.getT3())))
+                        .switchIfEmpty(redirectToLoginWithError());
+
             } catch (IllegalArgumentException | NullPointerException e) {
                 return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid params"));
             }
-
-            if (principal == null) {
-                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-            }
-
-            String externalId = principal.getAttribute("sub");
-
-            // 2. Основная логика: Найти юзера -> Изменить товар -> Собрать данные для рендеринга
-            return userRepository.findByExternalId(externalId)
-                    .flatMap(user -> cartService.changeItemCount(itemId, action, user.getId())
-                            .then(Mono.zip(
-                                    paymentHealthService.isPaymentServiceAvailable(),
-                                    cartService.getCartItems(user.getId()).collectList(),
-                                    cartService.getTotal(user.getId())
-                            ))
-                            .map(tuple -> {
-                                boolean isPayAvailable = tuple.getT1();
-                                List<ItemDto> items = tuple.getT2();
-                                Long total = tuple.getT3();
-
-                                return buildRendering(true, isPayAvailable, total, items);
-                            })
-                    );
         });
     }
 
@@ -102,5 +90,9 @@ public class CartController {
                 .modelAttribute("paymentServiceMessage",
                         isPayAvailable ? null : "Сервис оплаты временно недоступен.")
                 .build();
+    }
+
+    private Mono<Rendering> redirectToLoginWithError() {
+        return Mono.just(Rendering.redirectTo("/auth/login?error=user_not_registered").build());
     }
 }

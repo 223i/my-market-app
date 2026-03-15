@@ -79,7 +79,7 @@ public class OrderService {
                 .flatMap(cartItems -> convertCartToOrderItems(cartItems).collectList())
                 .flatMap(orderItems -> processOrderCreation(orderItems, userId))
                 .flatMap(orderDto -> executePayment(orderDto)
-                        .then(clearUserCart(userId))
+                        .then(Mono.defer(() -> clearUserCart(userId)))
                         .thenReturn(orderDto));
     }
 

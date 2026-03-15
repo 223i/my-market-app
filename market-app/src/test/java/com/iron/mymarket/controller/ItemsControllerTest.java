@@ -1,12 +1,17 @@
 package com.iron.mymarket.controller;
 
+import com.iron.mymarket.configuration.CustomAuthenticationEntryPoint;
+import com.iron.mymarket.configuration.SecurityConfig;
+import com.iron.mymarket.configuration.TestConfig;
 import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.ItemSort;
 import com.iron.mymarket.service.CartService;
+import com.iron.mymarket.service.CustomOidcUserService;
 import com.iron.mymarket.service.ItemService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -17,6 +22,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @WebFluxTest(ItemsController.class)
+@Import({SecurityConfig.class, TestConfig.class})
 class ItemsControllerTest {
 
     @Autowired
@@ -27,6 +33,12 @@ class ItemsControllerTest {
 
     @MockitoBean
     private ItemService itemService;
+
+    @MockitoBean
+    private CustomAuthenticationEntryPoint authenticationEntryPoint;
+
+    @MockitoBean
+    private CustomOidcUserService oidcUserService;
 
     @Test
     void getItems_shouldReturnItemsPageWithItemsAndTotal() {
@@ -64,8 +76,7 @@ class ItemsControllerTest {
                 .expectBody(String.class)
                 .value(html -> {
                     assert html.contains("Витрина магазина");
-                    assert html.contains("Заказы");
-                    assert html.contains("Корзина");
+                    assert html.contains("Войти");
                 });
     }
 
