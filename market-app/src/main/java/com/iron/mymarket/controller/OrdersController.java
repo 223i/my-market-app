@@ -37,14 +37,16 @@ public class OrdersController {
             return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
 
-        Long userId = principal.getAttribute("internal_id");
+        String externalId = principal.getAttribute("sub");
 
-        return orderService.findAllOrdersByUserId(userId)
-                .collectList()
-                .map(orders -> Rendering.view("orders")
-                        .modelAttribute("orders", orders)
-                        .modelAttribute("isAuthenticated", true)
-                        .build());
+        return userService.findByExternalId(externalId)
+                .flatMap(user -> orderService.findAllOrdersByUserId(user.getId())
+                        .collectList() // Собираем все заказы в список для модели
+                        .map(orders -> Rendering.view("orders")
+                                .modelAttribute("orders", orders)
+                                .modelAttribute("isAuthenticated", true)
+                                .build())
+                );
     }
 
     @GetMapping("/orders/{id}")
@@ -55,14 +57,31 @@ public class OrdersController {
         if (principal == null) {
             return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
-        Long userId = principal.getAttribute("internal_id");
 
-        return orderService.findOrderByIdAndUserId(id, userId)
-                .map(orderDto -> Rendering.view("order")
-                        .modelAttribute("order", orderDto)
-                        .modelAttribute("isAuthenticated", true)
-                        .build())
-                .switchIfEmpty(Mono.just(Rendering.redirectTo("/orders?error=not_found").build()));
+        String externalId = principal.getAttribute("sub");
+        log.info("External user id: {}", externalId);
+
+        return userService.findByExternalId(externalId)
+                .flatMap(user -> {
+                    log.info("User is: {}", user);
+
+                    Long userId = user.getId();
+                    return orderService.findOrderByIdAndUserId(id, userId)
+                            .map(orderDto ->{
+                                log.info("Order is: {}", orderDto.toString());
+                                return Rendering.view("order")
+                                        .modelAttribute("order", orderDto)
+                                        .modelAttribute("isAuthenticated", true)
+                                        .build();
+
+                            })
+
+                            .switchIfEmpty(Mono.just(Rendering.redirectTo("/orders?error=not_found").build()));
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+            log.error("User with externalId {} not found in database", externalId);
+            return Mono.just(Rendering.redirectTo("/auth/login?error=user_not_registered").build());
+        }));
     }
 
     @PostMapping("/buy")
@@ -86,6 +105,7 @@ public class OrdersController {
                                 return paymentHealthService.isPaymentServiceAvailable()
                                         .flatMap(isAvailable -> {
                                             if (!isAvailable) {
+                                                log.info("Сервис оплаты недоступен");
                                                 return renderCartWithError(userId, "Сервис оплаты недоступен", false);
                                             }
 
@@ -101,7 +121,6 @@ public class OrdersController {
                 });
     }
 
-    // Вспомогательный метод для рендеринга ошибок, чтобы не дублировать код
     private Mono<Rendering> renderCartWithError(Long userId, String error, boolean isPayAvailable) {
         return Mono.zip(
                 cartService.getCartItems(userId).collectList(),

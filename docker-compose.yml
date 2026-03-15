@@ -11,7 +11,7 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - market-data:/data
-    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "-Dh2.bindAddress=localhost", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists", "-trace"]
 
   # Redis для market-app
   market-redis:
@@ -60,7 +60,7 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - payment-data:/data
-    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "-Dh2.bindAddress=localhost", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists", "-trace"]
 
   # Сервис платежей
   payment-service:
