@@ -67,7 +67,7 @@ public class OrdersController {
 
                     Long userId = user.getId();
                     return orderService.findOrderByIdAndUserId(id, userId)
-                            .map(orderDto ->{
+                            .map(orderDto -> {
                                 log.info("Order is: {}", orderDto.toString());
                                 return Rendering.view("order")
                                         .modelAttribute("order", orderDto)
@@ -79,9 +79,9 @@ public class OrdersController {
                             .switchIfEmpty(Mono.just(Rendering.redirectTo("/orders?error=not_found").build()));
                 })
                 .switchIfEmpty(Mono.defer(() -> {
-            log.error("User with externalId {} not found in database", externalId);
-            return Mono.just(Rendering.redirectTo("/auth/login?error=user_not_registered").build());
-        }));
+                    log.error("User with externalId {} not found in database", externalId);
+                    return Mono.just(Rendering.redirectTo("/auth/login?error=user_not_registered").build());
+                }));
     }
 
     @PostMapping("/buy")
@@ -93,44 +93,43 @@ public class OrdersController {
         String externalId = principal.getAttribute("sub");
 
         return userService.findByExternalId(externalId)
-                .flatMap(user -> {
-                    Long userId = user.getId();
+                .flatMap(user -> checkRequirementsAndCreateOrder(user.getId()))
+                .onErrorResume(e -> {
+                    log.error("Order creation failed: {}", e.getMessage());
+                    return Mono.just(Rendering.redirectTo("/cart?error=true").build());
+                });
+    }
+
+    private Mono<Rendering> checkRequirementsAndCreateOrder(Long userId) {
+        return paymentHealthService.isPaymentServiceAvailable()
+                .flatMap(isAvailable -> {
+                    if (!isAvailable) {
+                        return renderCartWithError(userId, "Сервис оплаты недоступен", false);
+                    }
 
                     return cartService.getCartItems(userId).collectList()
                             .flatMap(items -> {
                                 if (items.isEmpty()) {
                                     return renderCartWithError(userId, "Ваша корзина пуста", true);
                                 }
-
-                                return paymentHealthService.isPaymentServiceAvailable()
-                                        .flatMap(isAvailable -> {
-                                            if (!isAvailable) {
-                                                log.info("Сервис оплаты недоступен");
-                                                return renderCartWithError(userId, "Сервис оплаты недоступен", false);
-                                            }
-
-                                            return orderService.createNewOrderWithPayment(userId)
-                                                    .map(order -> Rendering.redirectTo("/orders/" + order.getId() + "?newOrder=true").build());
-                                        });
+                                return proceedToCreateOrder(userId);
                             });
-                })
-                .onErrorResume(e -> {
-                    // Если юзер не найден или произошла ошибка в цепочке
-                    log.error("Order creation failed", e);
-                    return Mono.just(Rendering.redirectTo("/cart?error=true").build());
                 });
     }
 
+    private Mono<Rendering> proceedToCreateOrder(Long userId) {
+        return orderService.createNewOrderWithPayment(userId)
+                .map(order -> Rendering.redirectTo("/orders/" + order.getId() + "?newOrder=true").build());
+    }
+
     private Mono<Rendering> renderCartWithError(Long userId, String error, boolean isPayAvailable) {
-        return Mono.zip(
-                cartService.getCartItems(userId).collectList(),
-                cartService.getTotal(userId)
-        ).map(tuple -> Rendering.view("cart")
-                .modelAttribute("error", error)
-                .modelAttribute("items", tuple.getT1())
-                .modelAttribute("total", tuple.getT2())
-                .modelAttribute("paymentServiceAvailable", isPayAvailable)
-                .modelAttribute("isAuthenticated", true)
-                .build());
+        return Mono.zip(cartService.getCartItems(userId).collectList(), cartService.getTotal(userId))
+                .map(tuple -> Rendering.view("cart")
+                        .modelAttribute("error", error)
+                        .modelAttribute("items", tuple.getT1())
+                        .modelAttribute("total", tuple.getT2())
+                        .modelAttribute("paymentServiceAvailable", isPayAvailable)
+                        .modelAttribute("isAuthenticated", true)
+                        .build());
     }
 }

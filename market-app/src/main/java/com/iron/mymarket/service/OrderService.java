@@ -1,7 +1,6 @@
 package com.iron.mymarket.service;
 
 import com.iron.mymarket.dao.entities.CartItem;
-import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.entities.Order;
 import com.iron.mymarket.dao.entities.OrderItem;
 import com.iron.mymarket.dao.repository.CartRepository;
@@ -18,7 +17,6 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.List;
 
 
@@ -52,134 +50,106 @@ public class OrderService {
         this.cartRepository = cartRepository;
     }
 
+
     public Flux<OrderDto> findAllOrdersByUserId(Long userId) {
         log.info("Find all orders by user id: {}", userId);
         return orderRepository.findAllByUserId(userId)
-                .flatMap(order ->
-                        orderItemRepository.findAllByOrderId(order.getId())
-                                .collectList()
-                                .flatMap(items -> buildOrderDtoWithItems(order))
-                );
+                .flatMap(this::buildOrderDtoWithItems);
     }
 
     public Mono<OrderDto> findOrderById(Long id) {
         return orderRepository.findById(id)
-                .switchIfEmpty(Mono.error(
-                        new IllegalArgumentException("Order not found: " + id)
-                ))
+                .switchIfEmpty(Mono.error(() -> new IllegalArgumentException("Order not found: " + id)))
                 .flatMap(this::buildOrderDtoWithItems);
     }
 
     public Mono<OrderDto> findOrderByIdAndUserId(Long id, Long userId) {
         log.info("Search for order with id '{}' and userId '{}'", id, userId);
         return orderRepository.findByIdAndUserId(id, userId)
-                .flatMap(this::buildOrderDtoWithItems)
-                .switchIfEmpty(Mono.empty());
+                .flatMap(this::buildOrderDtoWithItems);
     }
 
+    /**
+     * Основной флоу создания заказа: Корзина -> Позиции -> Сохранение -> Оплата -> Очистка
+     */
     public Mono<OrderDto> createNewOrderWithPayment(Long userId) {
-        // 1. Получаем актуальные товары из БД вместо CartStorage
-        return cartRepository.findAllByUserId(userId).collectList()
-                .flatMap(cartItems -> {
-                    log.info("Cart items by userId: {}", Arrays.toString(cartItems.toArray()));
-                    if (cartItems.isEmpty()) {
-                        return Mono.error(new IllegalStateException("Cart is empty"));
-                    }
-
-                    // 2. Превращаем товары корзины в позиции заказа
-                    return createOrderItemsFromCart(cartItems).collectList()
-                            .flatMap(items -> {
-                                long total = calculateOrderTotal(items);
-
-                                // Сохраняем заказ в транзакции
-                                return transactionalOperator.transactional(calculateTotalAndSaveOrder(items, userId))
-                                        .flatMap(orderDto ->
-                                                // Оплата после успешного сохранения заказа
-                                                paymentClientService.pay((double) total)
-                                                        .onErrorMap(paymentError -> {
-                                                            log.error("Payment failed for order {}: {}", orderDto.getId(), paymentError.getMessage());
-                                                            return new RuntimeException("Payment failed: " + paymentError.getMessage(), paymentError);
-                                                        })
-                                                        .thenReturn(orderDto)
-                                        );
-                            });
-                })
-                // 5. Очищаем корзину в БД только после успешной оплаты
-                .flatMap(orderDto -> cartRepository.deleteAllByUserId(userId)
+        return cartRepository.findAllByUserId(userId)
+                .collectList()
+                .flatMap(this::ensureCartIsNotEmpty)
+                .flatMap(cartItems -> convertCartToOrderItems(cartItems).collectList())
+                .flatMap(orderItems -> processOrderCreation(orderItems, userId))
+                .flatMap(orderDto -> executePayment(orderDto)
+                        .then(clearUserCart(userId))
                         .thenReturn(orderDto));
     }
 
+    // Приватные методы для декомпозиции логики
+
+    private Mono<List<CartItem>> ensureCartIsNotEmpty(List<CartItem> cartItems) {
+        if (cartItems.isEmpty()) {
+            return Mono.error(new IllegalStateException("Cart is empty"));
+        }
+        return Mono.just(cartItems);
+    }
+
+    private Mono<OrderDto> processOrderCreation(List<OrderItem> orderItems, Long userId) {
+        Order order = new Order();
+        order.setUserId(userId);
+        order.setTotalSum(calculateOrderTotal(orderItems));
+
+        // Оборачиваем только сохранение в транзакцию
+        return transactionalOperator.transactional(saveOrderWithItems(order, orderItems));
+    }
+
+    private Mono<Void> executePayment(OrderDto orderDto) {
+        return paymentClientService.pay((double) orderDto.getTotalSum())
+                .onErrorMap(e -> {
+                    log.error("Payment failed for order {}: {}", orderDto.getId(), e.getMessage());
+                    return new RuntimeException("Payment failed: " + e.getMessage(), e);
+                })
+                .then();
+    }
+
+    private Mono<Void> clearUserCart(Long userId) {
+        return cartRepository.deleteAllByUserId(userId);
+    }
 
     private Mono<OrderDto> buildOrderDtoWithItems(Order order) {
         return fetchOrderItemsWithDetails(order.getId())
-                .map(orderItemDtos -> orderMapper.toOrderDto(order, orderItemDtos));
+                .map(items -> orderMapper.toOrderDto(order, items));
     }
 
     private Mono<List<OrderItemDto>> fetchOrderItemsWithDetails(Long orderId) {
         return orderItemRepository.findAllByOrderId(orderId)
-                .flatMap(this::buildOrderItemDtoWithItemDetails)
+                .flatMap(item -> itemRepository.findById(item.getItemId())
+                        .map(details -> itemMapper.toOrderItemDto(item, details)))
                 .collectList();
     }
 
-    private Mono<com.iron.mymarket.model.OrderItemDto> buildOrderItemDtoWithItemDetails(OrderItem orderItem) {
-        return itemRepository.findById(orderItem.getItemId())
-                .map(item -> itemMapper.toOrderItemDto(orderItem, item));
-    }
-
-    private Flux<OrderItem> createOrderItemsFromCart(List<CartItem> cartItems) {
+    private Flux<OrderItem> convertCartToOrderItems(List<CartItem> cartItems) {
         return Flux.fromIterable(cartItems)
-                .flatMap(entry ->
-                        itemRepository.findById(entry.getItemId())
-                                .switchIfEmpty(Mono.error(
-                                        new IllegalArgumentException("Item not found: " + entry.getItemId())
-                                ))
-                                .map(item -> createOrderItem(item, entry.getQuantity()))
-                );
-    }
-
-    private OrderItem createOrderItem(Item item, Integer quantity) {
-        OrderItem orderItem = new OrderItem();
-        orderItem.setItemId(item.getId());
-        orderItem.setQuantity(quantity);
-        orderItem.setPriceAtPurchase(item.getPrice());
-        return orderItem;
-    }
-
-    private Mono<OrderDto> calculateTotalAndSaveOrder(List<OrderItem> orderItems, Long userId) {
-        Order order = new Order();
-        order.setUserId(userId);
-        order.setTotalSum(calculateOrderTotal(orderItems));
-        return saveOrderWithItems(order, orderItems);
-    }
-
-    private long calculateOrderTotal(List<OrderItem> orderItems) {
-        return orderItems.stream()
-                .mapToLong(OrderItem::getSubtotal)
-                .sum();
+                .flatMap(cartItem -> itemRepository.findById(cartItem.getItemId())
+                        .switchIfEmpty(Mono.error(() -> new IllegalArgumentException("Item not found: " + cartItem.getItemId())))
+                        .map(item -> {
+                            OrderItem oi = new OrderItem();
+                            oi.setItemId(item.getId());
+                            oi.setQuantity(cartItem.getQuantity());
+                            oi.setPriceAtPurchase(item.getPrice());
+                            return oi;
+                        }));
     }
 
     private Mono<OrderDto> saveOrderWithItems(Order order, List<OrderItem> orderItems) {
-         // 1. Сначала сохраняем сам заказ, чтобы получить его ID из БД
         return orderRepository.save(order)
                 .flatMap(savedOrder -> {
-                    // 2. Проходим по всем позициям и устанавливаем ID сохраненного заказа
-                    orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
-                    return saveOrderItemsAndBuildDto(savedOrder, orderItems);
+                    orderItems.forEach(oi -> oi.setOrderId(savedOrder.getId()));
+                    return orderItemRepository.saveAll(orderItems)
+                            .collectList()
+                            .flatMap(items -> buildOrderDtoWithItems(savedOrder));
                 });
     }
 
-    private Mono<OrderDto> saveOrderItemsAndBuildDto(Order savedOrder, List<OrderItem> orderItems) {
-        return orderItemRepository.saveAll(orderItems)
-                .collectList() // ЖДЕМ, пока сохранятся ВЫ ВСЕ позиции заказа
-                .flatMap(savedItems -> {
-                    // Теперь, когда всё в базе, обогащаем данными из itemRepository
-                    return Flux.fromIterable(savedItems)
-                            .flatMap(savedItem ->
-                                    itemRepository.findById(savedItem.getItemId())
-                                            .map(item -> itemMapper.toOrderItemDto(savedItem, item))
-                            )
-                            .collectList()
-                            .map(orderItemDtos -> orderMapper.toOrderDto(savedOrder, orderItemDtos));
-                });
+    private long calculateOrderTotal(List<OrderItem> orderItems) {
+        return orderItems.stream().mapToLong(OrderItem::getSubtotal).sum();
     }
 }
