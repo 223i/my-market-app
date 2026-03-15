@@ -1,6 +1,7 @@
 package com.iron.mymarket.service;
 
 import com.iron.mymarket.dao.entities.CartItem;
+import com.iron.mymarket.dao.entities.Item;
 import com.iron.mymarket.dao.entities.Order;
 import com.iron.mymarket.dao.entities.OrderItem;
 import com.iron.mymarket.dao.repository.CartRepository;
@@ -11,14 +12,17 @@ import com.iron.mymarket.model.OrderDto;
 import com.iron.mymarket.model.OrderItemDto;
 import com.iron.mymarket.util.ItemMapper;
 import com.iron.mymarket.util.OrderMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Arrays;
 import java.util.List;
 
 
+@Slf4j
 @Service
 public class OrderService {
 
@@ -32,7 +36,8 @@ public class OrderService {
     private final CartRepository cartRepository;
 
 
-    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderMapper orderMapper,
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
+                        OrderMapper orderMapper,
                         ItemRepository itemRepository, ItemMapper itemMapper,
                         TransactionalOperator transactionalOperator,
                         PaymentClientService paymentClientService,
@@ -47,13 +52,8 @@ public class OrderService {
         this.cartRepository = cartRepository;
     }
 
-    //todo: удалить
-    public Flux<OrderDto> findOrders() {
-        return orderRepository.findAll()
-                .flatMap(this::buildOrderDtoWithItems);
-    }
-
     public Flux<OrderDto> findAllOrdersByUserId(Long userId) {
+        log.info("Find all orders by user id: {}", userId);
         return orderRepository.findAllByUserId(userId)
                 .flatMap(order ->
                         orderItemRepository.findAllByOrderId(order.getId())
@@ -71,12 +71,9 @@ public class OrderService {
     }
 
     public Mono<OrderDto> findOrderByIdAndUserId(Long id, Long userId) {
+        log.info("Search for order with id '{}' and userId '{}'", id, userId);
         return orderRepository.findByIdAndUserId(id, userId)
-                .flatMap(order -> orderItemRepository.findAllByOrderId(order.getId())
-                        .collectList()
-                        .flatMap(items -> {
-                            return buildOrderDtoWithItems(order);
-                        }))
+                .flatMap(this::buildOrderDtoWithItems)
                 .switchIfEmpty(Mono.empty());
     }
 
@@ -84,6 +81,7 @@ public class OrderService {
         // 1. Получаем актуальные товары из БД вместо CartStorage
         return cartRepository.findAllByUserId(userId).collectList()
                 .flatMap(cartItems -> {
+                    log.info("Cart items by userId: {}", Arrays.toString(cartItems.toArray()));
                     if (cartItems.isEmpty()) {
                         return Mono.error(new IllegalStateException("Cart is empty"));
                     }
@@ -93,13 +91,15 @@ public class OrderService {
                             .flatMap(items -> {
                                 long total = calculateOrderTotal(items);
 
-                                // Оборачиваем ВСЕ действия с БД в одну транзакцию
-                                return transactionalOperator.execute(status ->
-                                                calculateTotalAndSaveOrder(items, userId)
-                                        ).next()
+                                // Сохраняем заказ в транзакции
+                                return transactionalOperator.transactional(calculateTotalAndSaveOrder(items, userId))
                                         .flatMap(orderDto ->
-                                                // Оплата ВНЕ транзакции (чтобы не блокировать БД)
+                                                // Оплата после успешного сохранения заказа
                                                 paymentClientService.pay((double) total)
+                                                        .onErrorMap(paymentError -> {
+                                                            log.error("Payment failed for order {}: {}", orderDto.getId(), paymentError.getMessage());
+                                                            return new RuntimeException("Payment failed: " + paymentError.getMessage(), paymentError);
+                                                        })
                                                         .thenReturn(orderDto)
                                         );
                             });
@@ -129,15 +129,15 @@ public class OrderService {
     private Flux<OrderItem> createOrderItemsFromCart(List<CartItem> cartItems) {
         return Flux.fromIterable(cartItems)
                 .flatMap(entry ->
-                        itemRepository.findById(entry.getId())
+                        itemRepository.findById(entry.getItemId())
                                 .switchIfEmpty(Mono.error(
-                                        new IllegalArgumentException("Item not found: " + entry.getId())
+                                        new IllegalArgumentException("Item not found: " + entry.getItemId())
                                 ))
                                 .map(item -> createOrderItem(item, entry.getQuantity()))
                 );
     }
 
-    private OrderItem createOrderItem(com.iron.mymarket.dao.entities.Item item, Integer quantity) {
+    private OrderItem createOrderItem(Item item, Integer quantity) {
         OrderItem orderItem = new OrderItem();
         orderItem.setItemId(item.getId());
         orderItem.setQuantity(quantity);
