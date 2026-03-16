@@ -39,6 +39,7 @@ services:
       - SPRING_REDIS_HOST=market-redis
       - SPRING_REDIS_PORT=6379
       - PAYMENT_SERVICE_URL=http://payment-service:8081
+      - KC_CLIENT_SECRET=${KC_CLIENT_SECRET}
     depends_on:
       - market-db
       - market-redis

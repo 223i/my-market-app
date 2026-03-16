@@ -5,6 +5,7 @@ import com.iron.mymarket.dao.repository.UserRepository;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcReactiveOAuth2UserService;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
@@ -37,11 +38,11 @@ public class CustomOidcUserService extends OidcReactiveOAuth2UserService {
                             .map(userEntity -> {
                                 Map<String, Object> attributes = new HashMap<>(oidcUser.getAttributes());
                                 attributes.put("internal_id", userEntity.getId());
-
+                                OidcUserInfo userInfo = new OidcUserInfo(attributes);
                                 return new DefaultOidcUser(
                                         oidcUser.getAuthorities(),
                                         oidcUser.getIdToken(),
-                                        oidcUser.getUserInfo(),
+                                        userInfo,
                                         "preferred_username"
                                 );
                             });

@@ -78,7 +78,6 @@ public class ItemsController {
     @PostMapping("/items")
     public Mono<Rendering> postItemNumberInCart(ServerWebExchange exchange,
                                                 @AuthenticationPrincipal OAuth2User principal) {
-        // Если путь permitAll, principal может быть null
         if (principal == null) {
             return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
@@ -99,18 +98,16 @@ public class ItemsController {
     public Mono<Rendering> postItemById(@PathVariable Long id, ServerWebExchange exchange,
                                         @AuthenticationPrincipal OAuth2User principal) {
 
-        // Если путь permitAll, principal может быть null
         if (principal == null) {
             return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
 
-        // Извлекаем наш ID, добавленный в сервисе выше
+
         Long userId = principal.getAttribute("internal_id");
 
         return exchange.getFormData().flatMap(formData -> {
             ItemAction action = ItemAction.valueOf(formData.getFirst("action"));
 
-            // Просто вызываем сервис, передавая уже готовый Long userId
             return cartService.changeItemCount(id, action, userId)
                     .thenReturn(Rendering.redirectTo("/items/" + id).build());
         });
