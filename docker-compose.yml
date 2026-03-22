@@ -11,7 +11,7 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - market-data:/data
-    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "-Dh2.bindAddress=localhost", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists", "-trace"]
 
   # Redis для market-app
   market-redis:
@@ -32,16 +32,19 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=password
       - SPRING_REDIS_HOST=market-redis
       - SPRING_REDIS_PORT=6379
       - PAYMENT_SERVICE_URL=http://payment-service:8081
+      - KC_CLIENT_SECRET=${KC_CLIENT_SECRET}
     depends_on:
       - market-db
       - market-redis
       - payment-service
+      - keycloak
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
@@ -58,7 +61,7 @@ services:
       - H2_DATABASE_PASSWORD=password
     volumes:
       - payment-data:/data
-    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists"]
+    command: ["java", "-cp", "/opt/h2/bin/h2-2.2.224.jar", "-Dh2.bindAddress=localhost", "org.h2.tools.Server", "-tcp", "-tcpAllowOthers", "-web", "-webAllowOthers", "-ifNotExists", "-trace"]
 
   # Сервис платежей
   payment-service:
@@ -77,6 +80,30 @@ services:
     volumes:
       - ./payment-logs:/app/logs
     restart: unless-stopped
+
+  # Сервер авторизации (Keycloak)
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --import-realm
+    environment:
+      KC_DB: dev-file
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_URL: http://localhost:8082
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/realms/market-app-realm/.well-known/openid-configuration" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    volumes:
+      - ./keycloak_data:/opt/keycloak/data/h2
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
 
 volumes:
   market-data:

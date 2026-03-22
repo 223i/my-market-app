@@ -1,20 +1,19 @@
 package com.iron.mymarket.controller;
 
-import com.iron.mymarket.dao.repository.CartStorage;
-import com.iron.mymarket.service.OrderService;
 import com.iron.mymarket.service.CartService;
+import com.iron.mymarket.service.OrderService;
 import com.iron.mymarket.service.PaymentHealthService;
+import com.iron.mymarket.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.result.view.Rendering;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
-
-import java.util.List;
 
 @Slf4j
 @Controller
@@ -23,78 +22,114 @@ public class OrdersController {
     private final OrderService orderService;
     private final CartService cartService;
     private final PaymentHealthService paymentHealthService;
+    private final UserService userService;
 
-    public OrdersController(OrderService orderService, CartService cartService, PaymentHealthService paymentHealthService) {
+    public OrdersController(OrderService orderService, CartService cartService, PaymentHealthService paymentHealthService, UserService userService) {
         this.orderService = orderService;
         this.cartService = cartService;
         this.paymentHealthService = paymentHealthService;
+        this.userService = userService;
     }
 
     @GetMapping("/orders")
-    public Mono<Rendering> getOrders() {
-        return Mono.just(Rendering.view("orders")
-                .modelAttribute("orders", orderService.findOrders())
-                .build());
+    public Mono<Rendering> getOrders(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
+        }
+
+        String externalId = principal.getAttribute("sub");
+
+        return userService.findByExternalId(externalId)
+                .flatMap(user -> orderService.findAllOrdersByUserId(user.getId())
+                        .collectList() // Собираем все заказы в список для модели
+                        .map(orders -> Rendering.view("orders")
+                                .modelAttribute("orders", orders)
+                                .modelAttribute("isAuthenticated", true)
+                                .build())
+                );
     }
 
     @GetMapping("/orders/{id}")
     public Mono<Rendering> getOrderById(@PathVariable Long id,
                                         @RequestParam(required = false,
-                                                value = "newOrder", defaultValue = "false") Boolean newOrder) {
-        return orderService.findOrderById(id)
-                .map(order -> Rendering.view("order")
-                        .modelAttribute("order", order)
-                        .build());
+                                                value = "newOrder", defaultValue = "false") Boolean newOrder,
+                                        @AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
+        }
+
+        String externalId = principal.getAttribute("sub");
+        log.info("External user id: {}", externalId);
+
+        return userService.findByExternalId(externalId)
+                .flatMap(user -> {
+                    log.info("User is: {}", user);
+
+                    Long userId = user.getId();
+                    return orderService.findOrderByIdAndUserId(id, userId)
+                            .map(orderDto -> {
+                                log.info("Order is: {}", orderDto.toString());
+                                return Rendering.view("order")
+                                        .modelAttribute("order", orderDto)
+                                        .modelAttribute("isAuthenticated", true)
+                                        .build();
+
+                            })
+
+                            .switchIfEmpty(Mono.just(Rendering.redirectTo("/orders?error=not_found").build()));
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.error("User with externalId {} not found in database", externalId);
+                    return Mono.just(Rendering.redirectTo("/auth/login?error=user_not_registered").build());
+                }));
     }
 
     @PostMapping("/buy")
-    public Mono<Rendering> createNewOrder(WebSession session) {
-
-        CartStorage cart = session.getAttribute("cart");
-        if (cart == null || cart.getItems().isEmpty()) {
-            return cartService.getCartItems(cart != null ? cart : new CartStorage())
-                    .collectList()
-                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                    .map(tuple -> Rendering.view("cart")
-                            .modelAttribute("error", "Cart is empty")
-                            .modelAttribute("items", tuple.getT1())
-                            .modelAttribute("total", 0L)
-                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
-                            .modelAttribute("paymentServiceMessage", 
-                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                            .build());
+    public Mono<Rendering> createNewOrder(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) {
+            return Mono.just(Rendering.redirectTo("/auth/login").build());
         }
 
+        String externalId = principal.getAttribute("sub");
+
+        return userService.findByExternalId(externalId)
+                .flatMap(user -> checkRequirementsAndCreateOrder(user.getId()))
+                .onErrorResume(e -> {
+                    log.error("Order creation failed: {}", e.getMessage());
+                    return Mono.just(Rendering.redirectTo("/cart?error=true").build());
+                });
+    }
+
+    private Mono<Rendering> checkRequirementsAndCreateOrder(Long userId) {
         return paymentHealthService.isPaymentServiceAvailable()
                 .flatMap(isAvailable -> {
                     if (!isAvailable) {
-                        return cartService.getCartItems(cart)
-                                .collectList()
-                                .zipWith(cartService.getTotal(cart))
-                                .map(tuple -> Rendering.view("cart")
-                                        .modelAttribute("error", "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                        .modelAttribute("items", tuple.getT1())
-                                        .modelAttribute("total", tuple.getT2())
-                                        .modelAttribute("paymentServiceAvailable", false)
-                                        .modelAttribute("paymentServiceMessage", "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                        .build());
+                        return renderCartWithError(userId, "Сервис оплаты недоступен", false);
                     }
 
-                    return orderService.createNewOrderWithPayment(cart)
-                            .flatMap(createdOrder -> session.save()
-                                    .thenReturn(Rendering.redirectTo("/orders/" + createdOrder.getId() + "?newOrder=true").build()))
-                            .onErrorResume(e -> cartService.getCartItems(cart)
-                                    .collectList()
-                                    .zipWith(cartService.getTotal(cart))
-                                    .zipWith(paymentHealthService.isPaymentServiceAvailable())
-                                    .map(tuple -> Rendering.view("cart")
-                                            .modelAttribute("error", e.getMessage())
-                                            .modelAttribute("items", tuple.getT1().getT1())
-                                            .modelAttribute("total", tuple.getT1().getT2())
-                                            .modelAttribute("paymentServiceAvailable", tuple.getT2())
-                                            .modelAttribute("paymentServiceMessage", 
-                                                    tuple.getT2() ? null : "Сервис оплаты временно недоступен. Попробуйте позже.")
-                                            .build()));
+                    return cartService.getCartItems(userId).collectList()
+                            .flatMap(items -> {
+                                if (items.isEmpty()) {
+                                    return renderCartWithError(userId, "Ваша корзина пуста", true);
+                                }
+                                return proceedToCreateOrder(userId);
+                            });
                 });
+    }
+
+    private Mono<Rendering> proceedToCreateOrder(Long userId) {
+        return orderService.createNewOrderWithPayment(userId)
+                .map(order -> Rendering.redirectTo("/orders/" + order.getId() + "?newOrder=true").build());
+    }
+
+    private Mono<Rendering> renderCartWithError(Long userId, String error, boolean isPayAvailable) {
+        return Mono.zip(cartService.getCartItems(userId).collectList(), cartService.getTotal(userId))
+                .map(tuple -> Rendering.view("cart")
+                        .modelAttribute("error", error)
+                        .modelAttribute("items", tuple.getT1())
+                        .modelAttribute("total", tuple.getT2())
+                        .modelAttribute("paymentServiceAvailable", isPayAvailable)
+                        .modelAttribute("isAuthenticated", true)
+                        .build());
     }
 }

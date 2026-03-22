@@ -16,7 +16,10 @@
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
+                    <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
+                    <form th:if="${isAuthenticated}" th:action="@{/auth/logout}" method="post" style="display: inline;">
+                        <button type="submit" class="btn btn-danger bi bi-box-arrow-right"> Выйти</button>
+                    </form>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
                 </div>
             </div>
@@ -57,7 +60,7 @@
                     <p th:text="${paymentServiceMessage}"></p>
                 </div>
 
-                <form action="/buy" method="post" th:if="${items != null and !items.isEmpty() and paymentServiceAvailable}">
+                <form th:if="${isAuthenticated and items != null and !items.isEmpty() and paymentServiceAvailable}" action="/buy" method="post">
                     <div class="hstack gap-3">
                         <h2 th:text="'Итого: '+${total}+' руб.'"/>
                         <button type="submit" class="btn btn-warning ms-auto">Купить</button>

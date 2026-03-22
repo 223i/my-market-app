@@ -14,6 +14,7 @@ import java.util.List;
 public class OrderDto {
 
     long id;
+    long userId;
     List<OrderItemDto> items;
     long totalSum;
 }

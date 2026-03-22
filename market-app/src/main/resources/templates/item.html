@@ -16,8 +16,12 @@
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
-                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+                    <a th:if="${isAuthenticated}" href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
+                    <a th:if="${isAuthenticated}" href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+                    <form th:if="${isAuthenticated}" th:action="@{/auth/logout}" method="post" style="display: inline;">
+                        <button type="submit" class="btn btn-danger bi bi-box-arrow-right"> Выйти</button>
+                    </form>
+                    <a th:unless="${isAuthenticated}" href="/auth/login" class="btn btn-primary bi bi-box-arrow-in-right"> Войти</a>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
                 </div>
             </div>
@@ -33,6 +37,7 @@
                         </h5>
                         <p class="card-text" th:text="${item.description}"></p>
                         <form th:action="@{${'/items/'+item.id}}" method="post">
+                            <input type="hidden" name="id" th:value="${item.id}">
                             <div class="hstack gap-3">
                                 <button type="submit" class="btn btn-outline-secondary" name="action" value="MINUS">-</button>
                                 <span th:text="${item.count}"></span>

@@ -1,12 +1,11 @@
 package com.iron.mymarket.service;
 
-import com.iron.mymarket.dao.entities.Item;
-import com.iron.mymarket.dao.entities.Order;
-import com.iron.mymarket.dao.entities.OrderItem;
-import com.iron.mymarket.dao.repository.CartStorage;
+import com.iron.mymarket.dao.entities.*;
+import com.iron.mymarket.dao.repository.CartRepository;
 import com.iron.mymarket.dao.repository.ItemRepository;
 import com.iron.mymarket.dao.repository.OrderItemRepository;
 import com.iron.mymarket.dao.repository.OrderRepository;
+import com.iron.mymarket.model.ItemDto;
 import com.iron.mymarket.model.OrderDto;
 import com.iron.mymarket.model.OrderItemDto;
 import com.iron.mymarket.util.ItemMapper;
@@ -21,11 +20,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 public class OrderServiceTest {
@@ -39,7 +37,6 @@ public class OrderServiceTest {
     @Mock
     private ItemMapper itemMapper;
 
-
     @Mock
     private ItemRepository itemRepository;
 
@@ -47,13 +44,21 @@ public class OrderServiceTest {
     private OrderItemRepository orderItemRepository;
 
     @Mock
-    private CartStorage cartStorage;
+    private TransactionalOperator transactionalOperator;
 
     @Mock
-    private TransactionalOperator transactionalOperator;
+    private PaymentClientService paymentClientService;
+
+    @Mock
+    private CartRepository cartRepository;
 
     @InjectMocks
     private OrderService orderService;
+
+    private Order testOrder;
+    private Item testItem;
+    private CartItem testCartItem;
+    private User testUser;
 
     @BeforeEach
     void setUp() {
@@ -62,93 +67,84 @@ public class OrderServiceTest {
         when(transactionalOperator.transactional(any(Mono.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(transactionalOperator.transactional(any(Flux.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        // Setup test data
+        testUser = new User("user123", "test@example.com", "Test User");
+        testItem = new Item();
+        testItem.setId(1L);
+        testItem.setTitle("Test Item");
+        testItem.setPrice(100L);
+
+        testCartItem = new CartItem();
+        testCartItem.setId(1L);
+        testCartItem.setUserId(1L);
+        testCartItem.setItemId(1L);
+        testCartItem.setQuantity(2);
+
+        testOrder = new Order();
+        testOrder.setId(1L);
+        testOrder.setUserId(1L);
+        testOrder.setTotalSum(200L);
     }
 
     @Test
-    void findOrders_shouldReturnMappedOrders() {
-        Order order1 = new Order();
-        order1.setId(1L);
-        Order order2 = new Order();
-        order2.setId(2L);
+    void findAllOrdersByUserId_withValidUserId_shouldReturnUserOrders() {
+        List<OrderItem> orderItems = List.of(
+                createOrderItem(1L, 1L, 2, 100L),
+                createOrderItem(2L, 2L, 1, 150L)
+        );
+        List<OrderItemDto> orderItemDtos = List.of(
+                new OrderItemDto(new com.iron.mymarket.model.ItemDto(1L, "Item 1", "Desc", "/img/1.jpg", 100, 0), 2, 200L),
+                new OrderItemDto(new com.iron.mymarket.model.ItemDto(2L, "Item 2", "Desc", "/img/2.jpg", 150, 0), 1, 150L)
+        );
+        OrderDto expectedOrderDto = new OrderDto(1L, 1L, orderItemDtos, 350L);
 
-        OrderItem orderItem1 = new OrderItem();
-        orderItem1.setOrderId(1L);
-        orderItem1.setItemId(10L);
-        OrderItem orderItem2 = new OrderItem();
-        orderItem2.setOrderId(2L);
-        orderItem2.setItemId(20L);
+        when(orderRepository.findAllByUserId(1L)).thenReturn(Flux.just(testOrder));
+        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.fromIterable(orderItems));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
+        when(itemRepository.findById(2L)).thenReturn(Mono.just(testItem));
+        when(itemMapper.toOrderItemDto(any(OrderItem.class), any(Item.class)))
+                .thenReturn(orderItemDtos.get(0), orderItemDtos.get(1));
+        when(orderMapper.toOrderDto(eq(testOrder), any(List.class))).thenReturn(expectedOrderDto);
 
-        Item item1 = new Item();
-        item1.setId(10L);
-        item1.setTitle("Product 1");
-        Item item2 = new Item();
-        item2.setId(20L);
-        item2.setTitle("Product 2");
+        // When
+        Flux<OrderDto> result = orderService.findAllOrdersByUserId(1L);
 
-        OrderItemDto orderItemDto1 = new OrderItemDto();
-        orderItemDto1.setItem(itemMapper.toItemDto(item1));
-        OrderItemDto orderItemDto2 = new OrderItemDto();
-        orderItemDto2.setItem(itemMapper.toItemDto(item2));
-
-        when(orderRepository.findAll()).thenReturn(Flux.just(order1, order2));
-
-        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem1));
-        when(orderItemRepository.findAllByOrderId(2L)).thenReturn(Flux.just(orderItem2));
-
-        when(itemRepository.findById(10L)).thenReturn(Mono.just(item1));
-        when(itemRepository.findById(20L)).thenReturn(Mono.just(item2));
-
-        when(itemMapper.toOrderItemDto(orderItem1, item1)).thenReturn(orderItemDto1);
-        when(itemMapper.toOrderItemDto(orderItem2, item2)).thenReturn(orderItemDto2);
-
-        OrderDto dto1 = new OrderDto();
-        dto1.setId(1L);
-        OrderDto dto2 = new OrderDto();
-        dto2.setId(2L);
-
-        when(orderMapper.toOrderDto(eq(order1), anyList())).thenReturn(dto1);
-        when(orderMapper.toOrderDto(eq(order2), anyList())).thenReturn(dto2);
-
-
-        StepVerifier.create(orderService.findOrders())
-                .assertNext(res -> assertEquals(1L, res.getId()))
-                .assertNext(res -> assertEquals(2L, res.getId()))
+        // Then
+        StepVerifier.create(result)
+                .expectNext(expectedOrderDto)
                 .verifyComplete();
 
-        verify(orderRepository, times(1)).findAll();
-        verify(orderItemRepository, times(2)).findAllByOrderId(any());
+        verify(orderRepository, times(1)).findAllByUserId(1L);
+        verify(orderItemRepository, times(1)).findAllByOrderId(1L);
         verify(itemRepository, times(2)).findById(anyLong());
+        verify(orderMapper, times(1)).toOrderDto(eq(testOrder), any(List.class));
     }
 
     @Test
     void findOrderById_existingId_shouldReturnMappedOrder() {
-        Order order1 = new Order();
-        order1.setId(1L);
-        OrderItem orderItem1 = new OrderItem();
-        orderItem1.setOrderId(1L);
-        orderItem1.setItemId(10L);
-        Item item1 = new Item();
-        item1.setId(10L);
-        item1.setTitle("Product 1");
-        OrderItemDto orderItemDto1 = new OrderItemDto();
-        orderItemDto1.setItem(itemMapper.toItemDto(item1));
-        OrderDto dto1 = new OrderDto();
-        dto1.setId(1L);
+        OrderItem orderItem = createOrderItem(1L, 1L, 1, 100L);
+        OrderItemDto orderItemDto = new OrderItemDto(
+                new com.iron.mymarket.model.ItemDto(1L, "Item 1", "Desc", "/img/1.jpg", 100, 0),
+                1, 100L
+        );
+        OrderDto expectedOrderDto = new OrderDto(1L, 1L, List.of(orderItemDto), 100L);
 
+        when(orderRepository.findById(1L)).thenReturn(Mono.just(testOrder));
+        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
+        when(itemMapper.toOrderItemDto(orderItem, testItem)).thenReturn(orderItemDto);
+        when(orderMapper.toOrderDto(testOrder, List.of(orderItemDto))).thenReturn(expectedOrderDto);
 
-        when(orderRepository.findById(1L)).thenReturn(Mono.just(order1));
-        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem1));
-        when(orderMapper.toOrderDto(order1, List.of(orderItemDto1))).thenReturn(dto1);
-        when(itemRepository.findById(10L)).thenReturn(Mono.just(item1));
-        when(itemMapper.toOrderItemDto(orderItem1, item1)).thenReturn(orderItemDto1);
+        Mono<OrderDto> result = orderService.findOrderById(1L);
 
-        OrderDto result = orderService.findOrderById(1L).block();
+        StepVerifier.create(result)
+                .expectNext(expectedOrderDto)
+                .verifyComplete();
 
-        assertEquals(1L, result.getId());
         verify(orderRepository, times(1)).findById(1L);
-        verify(orderMapper, times(1)).toOrderDto(order1, List.of(orderItemDto1));
+        verify(orderItemRepository, times(1)).findAllByOrderId(1L);
+        verify(itemRepository, times(1)).findById(1L);
+        verify(orderMapper, times(1)).toOrderDto(testOrder, List.of(orderItemDto));
     }
 
     @Test
@@ -166,33 +162,122 @@ public class OrderServiceTest {
     }
 
     @Test
-    void createNewOrder_emptyCart_shouldThrowException() {
-        when(cartStorage.getItems()).thenReturn(Collections.emptyMap());
+    void findOrderByIdAndUserId_withValidOrderAndUser_shouldReturnOrder() {
+        OrderItem orderItem = createOrderItem(1L, 1L, 1, 100L);
+        OrderItemDto orderItemDto = new OrderItemDto(
+                new com.iron.mymarket.model.ItemDto(1L, "Item 1", "Desc", "/img/1.jpg", 100, 0),
+                1, 100L
+        );
+        OrderDto expectedOrderDto = new OrderDto(1L, 1L, List.of(orderItemDto), 100L);
 
-        StepVerifier.create(orderService.createNewOrder(cartStorage))
+        when(orderRepository.findByIdAndUserId(1L, 1L)).thenReturn(Mono.just(testOrder));
+        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
+        when(itemMapper.toOrderItemDto(orderItem, testItem)).thenReturn(orderItemDto);
+        when(orderMapper.toOrderDto(testOrder, List.of(orderItemDto))).thenReturn(expectedOrderDto);
+
+        Mono<OrderDto> result = orderService.findOrderByIdAndUserId(1L, 1L);
+
+        StepVerifier.create(result)
+                .expectNext(expectedOrderDto)
+                .verifyComplete();
+
+        verify(orderRepository, times(1)).findByIdAndUserId(1L, 1L);
+        verify(orderItemRepository, times(1)).findAllByOrderId(1L);
+        verify(itemRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    void createNewOrderWithPayment_withValidCart_shouldCreateOrderAndProcessPayment() {
+        List<CartItem> cartItems = List.of(testCartItem);
+        OrderItem orderItem = createOrderItem(1L, 1L, 2, 100L);
+        OrderItemDto orderItemDto = new OrderItemDto(
+                new ItemDto(1L, "Item 1", "Desc", "/img/1.jpg", 100, 0),
+                2, 200L
+        );
+        OrderDto expectedOrderDto = new OrderDto(1L, 1L, List.of(orderItemDto), 200L);
+
+        when(cartRepository.findAllByUserId(1L)).thenReturn(Flux.fromIterable(cartItems));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
+        when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(testOrder));
+        when(orderItemRepository.saveAll(any(List.class))).thenReturn(Flux.just(orderItem));
+        when(orderItemRepository.findAllByOrderId(any(Long.class))).thenReturn(Flux.just(orderItem));
+        when(itemMapper.toOrderItemDto(any(OrderItem.class), any(Item.class))).thenReturn(orderItemDto);
+        when(orderMapper.toOrderDto(any(Order.class), any(List.class))).thenReturn(expectedOrderDto);
+        when(paymentClientService.pay(200.0)).thenReturn(Mono.just(800.0));
+        when(cartRepository.deleteAllByUserId(1L)).thenReturn(Mono.empty());
+
+        Mono<OrderDto> result = orderService.createNewOrderWithPayment(1L);
+
+        StepVerifier.create(result)
+                .expectNext(expectedOrderDto)
+                .verifyComplete();
+
+        verify(cartRepository, times(1)).findAllByUserId(1L);
+        verify(itemRepository, times(2)).findById(1L);
+        verify(orderRepository, times(1)).save(any(Order.class));
+        verify(orderItemRepository, times(1)).saveAll(any(List.class));
+        verify(paymentClientService, times(1)).pay(200.0);
+        verify(cartRepository, times(1)).deleteAllByUserId(1L);
+    }
+
+    @Test
+    void createNewOrderWithPayment_withEmptyCart_shouldThrowException() {
+        when(cartRepository.findAllByUserId(1L)).thenReturn(Flux.empty());
+
+        Mono<OrderDto> result = orderService.createNewOrderWithPayment(1L);
+
+        StepVerifier.create(result)
                 .expectErrorMatches(throwable -> throwable instanceof IllegalStateException &&
                         throwable.getMessage().equals("Cart is empty"))
                 .verify();
 
+        verify(cartRepository, times(1)).findAllByUserId(1L);
         verifyNoInteractions(itemRepository);
         verifyNoInteractions(orderRepository);
+        verifyNoInteractions(paymentClientService);
     }
 
     @Test
-    void createNewOrder_itemNotFound_shouldThrowException() {
-        Map<Long, Integer> cartItems = Map.of(1L, 1);
-        when(cartStorage.getItems()).thenReturn(cartItems);
+    void createNewOrderWithPayment_withPaymentFailure_shouldNotClearCart() {
+        List<CartItem> cartItems = List.of(testCartItem);
+        OrderItem orderItem = createOrderItem(1L, 1L, 2, 100L);
+        OrderItemDto orderItemDto = new OrderItemDto(
+                new ItemDto(1L, "Item 1", "Desc", "/img/1.jpg", 100, 0),
+                2, 200L
+        );
+        OrderDto expectedOrderDto = new OrderDto(1L, 1L, List.of(orderItemDto), 200L);
 
-        when(itemRepository.findById(1L)).thenReturn(Mono.empty());
+        when(cartRepository.findAllByUserId(1L)).thenReturn(Flux.fromIterable(cartItems));
+        when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
+        when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(testOrder));
+        when(orderItemRepository.saveAll(any(List.class))).thenReturn(Flux.just(orderItem));
+        when(orderItemRepository.findAllByOrderId(any(Long.class))).thenReturn(Flux.just(orderItem));
+        when(orderMapper.toOrderDto(any(), any())).thenReturn(expectedOrderDto);
+        when(itemMapper.toOrderItemDto(any(), any())).thenReturn(orderItemDto);
+        when(paymentClientService.pay(any(Double.class))).thenReturn(Mono.error(new RuntimeException("Payment failed")));
 
-        Mono<OrderDto> result = orderService.createNewOrder(cartStorage);
+        Mono<OrderDto> result = orderService.createNewOrderWithPayment(1L);
 
         StepVerifier.create(result)
-                .expectErrorMatches(throwable -> throwable instanceof IllegalArgumentException &&
-                        throwable.getMessage().contains("Item not found"))
+                .expectErrorMatches(throwable -> throwable instanceof RuntimeException &&
+                        throwable.getMessage().contains("Payment failed"))
                 .verify();
 
-        verify(itemRepository).findById(1L);
-        verifyNoInteractions(orderRepository);
+        verify(cartRepository, times(1)).findAllByUserId(1L);
+        verify(itemRepository, times(2)).findById(1L);
+        verify(orderRepository, times(1)).save(any(Order.class));
+        verify(orderItemRepository, times(1)).saveAll(any(List.class));
+        verify(paymentClientService, times(1)).pay(200.0);
+        verify(cartRepository, never()).deleteAllByUserId(1L); // Cart should not be cleared on payment failure
+    }
+
+    private OrderItem createOrderItem(Long id, Long itemId, int quantity, long price) {
+        OrderItem orderItem = new OrderItem();
+        orderItem.setId(id);
+        orderItem.setItemId(itemId);
+        orderItem.setQuantity(quantity);
+        orderItem.setPriceAtPurchase(price);
+        return orderItem;
     }
 }

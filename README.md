@@ -2,40 +2,57 @@
 
 ## 📋 Описание проекта
 
-My Market App - это микросервисное приложение для управления маркетплейсом с функционалом:
+My Market App - это микросервисное приложение для управления маркетплейсом с системой аутентификации через Keycloak:
+
+### 🏗️ Архитектура
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  market-app │    │payment-service│  │   Keycloak  │    │    Redis    │
+│   (8080)    │    │   (8081)    │    │   (8082)    │    │  (6379)     │
+│             │    │             │    │             │    │             │
+│  Spring     │    │   Spring    │    │   Identity  │    │   Cache     │
+│ WebFlux     │    │  WebFlux    │    │   Provider  │    │             │
+│             │    │             │    │             │    │             │
+│     H2      │    │     H2      │    │             │    │             │
+│   (9092)    │    │   (9093)    │    │             │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### 🔐 Система авторизации
+
+- **Keycloak** - сервер идентификации (порт 8082)
+- **OAuth2** - протокол авторизации между сервисами
+- **OpenID Connect** - аутентификация пользователей
+- **JWT токены** - безопасная передача данных между сервисами
+
+### 📦 Микросервисы
+
 - **market-app** - основное приложение с каталогом товаров, корзиной и заказами
-- **payment-service** - микросервис для обработки платежей
-- **Docker Compose** - конфигурация для развертывания полного стека
+- **payment-service** - микросервис для обработки платежей с OAuth2 защитой
+- **payment-api** - OpenAPI спецификация для сервиса платежей
 
-### Архитектура
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  market-app │    │payment-service│    │    Redis    │
-│   (8080)   │    │   (8081)    │    │  (6379)    │
-│             │    │             │    │             │
-│  Spring     │    │   Spring     │    │   Cache     │
-│ WebFlux     │    │  WebFlux     │    │             │
-│             │    │             │    │             │
-│     H2      │    │     H2      │    │             │
-│   (9092)    │    │   (9093)    │    │             │
-└─────────────┘    └─────────────┘    └─────────────┘
-```
+## 🚀 Запуск приложения
 
-## 🚀 Docker Compose
+### ⚠️ Важное замечание
+Сборка и запуск приложения возможны **только через Docker Compose**. Локальный запуск не поддерживается из-за сложной конфигурации Keycloak и зависимостей между сервисами.
 
-Docker Compose конфигурация для запуска полного стека приложений:
-- **market-app** - основное приложение (порт 8080)
-- **payment-service** - сервис платежей (порт 8081)
-- **market-db** - база данных для market-app (H2, порт 9092)
-- **payment-db** - база данных для payment-service (H2, порт 9093)
-- **market-redis** - Redis для кеширования (порт 6379)
+### 🔑 Подготовка к запуску
 
-## 🚀 Быстрый запуск
-
-### Способ 1: Все сервисы через Docker Compose (рекомендуется)
+Перед запуском необходимо создать файл `.env` в корне проекта с client-secret для Keycloak:
 
 ```bash
-# Запуск всех сервисов
+# Создайте файл .env в корне проекта
+touch .env
+
+# Добавьте в него client-secret для Keycloak
+echo "KC_CLIENT_SECRET=your_client_secret" > .env
+```
+
+### 🐳 Docker Compose (рекомендуемый способ)
+
+```bash
+# Запуск полного стека приложений
 docker-compose up -d
 
 # Просмотр логов
@@ -45,441 +62,223 @@ docker-compose logs -f
 docker-compose down
 ```
 
-### Способ 2: Отдельный запуск сервисов
+#### 🚀 Что запускается:
 
-```bash
-# Запуск только market-app
-docker build -t market-app -f market-app/Dockerfile .
-docker run -d --name market-app -p 8080:8080 market-app
+- **market-app** - основное приложение (порт 8080)
+- **payment-service** - сервис платежей (порт 8081) 
+- **keycloak** - сервер идентификации (порт 8082)
+- **market-db** - база данных H2 для market-app (порт 9092)
+- **payment-db** - база данных H2 для payment-service (порт 9093)
+- **keycloak-db** - PostgreSQL для Keycloak (порт 5432)
+- **market-redis** - Redis для кеширования (порт 6379)
 
-# Запуск только payment-service  
-docker build -t payment-service -f payment-service/Dockerfile .
-docker run -d --name payment-service -p 8081:8081 payment-service
+## 🔐 Авторизация и безопасность
 
-# Запуск с зависимостями через docker-compose
-docker-compose up -d market-db market-redis
-docker build -t market-app -f market-app/Dockerfile .
-docker run -d --name market-app -p 8080:8080 \
-  --network my-market-app_default \
-  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
-  -e SPRING_REDIS_HOST=market-redis \
-  market-app
-```
+### 📋 Конфигурация Keycloak
 
-### Способ 3: Multi-stage build (оптимизированная сборка)
+- **Realm**: `my-market`
+- **Client**: `market-app` (public client)
+- **Client**: `payment-service` (confidential client)
+- **Test users**: преднастроенные пользователи для демо
 
-```bash
-# Сборка всех модулей одним Dockerfile
-docker build -t my-market-build -f Dockerfile .
+### 🔑 Процесс авторизации
 
-# Запуск market-app
-docker run -d --name market-app -p 8080:8080 --network my-market-app_default \
-  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://market-db:9092/market \
-  -e SPRING_REDIS_HOST=market-redis \
-  my-market-build
+1. **Пользователь** заходит на http://localhost:8080
+2. **Перенаправление** на страницу входа Keycloak
+3. **Аутентификация** через логин/пароль
+4. **Получение JWT токена** для доступа к ресурсам
+5. **OAuth2** для взаимодействия между сервисами
 
-# Запуск payment-service
-docker run -d --name payment-service -p 8081:8081 --network my-market-app_default \
-  -e SPRING_DATASOURCE_URL=r2dbc:h2:tcp://payment-db:9092/payment \
-  my-market-build
-```
+### 🛡️ Защита эндпоинтов
 
-### Способ 4: Локальный запуск (для разработки)
-
-```bash
-# Запуск Redis
-docker run -d --name redis -p 6379:6379 redis:7-alpine
-
-# Запуск payment-service
-cd payment-service
-../mvnw spring-boot:run
-
-# Запуск market-app (в другом терминале)
-cd market-app  
-../mvnw spring-boot:run
-```
-
-## 📂 Структура
-
-```
-my-market-app/
-├── docker-compose.yml              # Основной файл конфигурации
-├── Dockerfile                      # Multi-stage build для всех сервисов
-├── market-app/
-│   ├── Dockerfile                 # Сборка market-app (независимая)
-│   ├── .dockerignore             # Исключения для Docker
-│   └── src/main/resources/
-│       └── application-docker.properties  # Конфигурация для Docker
-└── payment-service/
-    ├── Dockerfile                 # Сборка payment-service (независимая)
-    ├── .dockerignore             # Исключения для Docker
-    └── src/main/resources/
-        └── application-docker.properties  # Конфигурация для Docker
-```
-
-### 🐳 Docker файлы
-
-**Корневой Dockerfile (multi-stage build):**
-- `build` stage - сборка всех модулей Maven
-- `market-app-final` stage - финальный образ для market-app
-- `payment-service-final` stage - финальный образ для payment-service
-
-**Локальные Dockerfile'ы:**
-- `market-app/Dockerfile` - независимая сборка market-app
-- `payment-service/Dockerfile` - независимая сборка payment-service
-- Используют `-pl` флаг для сборки только нужного модуля
-
-### 🔄 Преимущества подходов
-
-| Подход | Преимущества | Недостатки |
-|--------|--------------|------------|
-| **Docker Compose** | ✅ Полная автоматизация<br>✅ Управление зависимостями<br>✅ Сетевая изоляция | ❌ Медленная первая сборка |
-| **Отдельные Dockerfile'ы** | ✅ Независимый запуск<br>✅ Быстрая пересборка<br>✅ Гибкость разработки | ❌ Ручное управление зависимостями |
-| **Multi-stage build** | ✅ Эффективный кеш<br>✅ Единая точка сборки<br>✅ Оптимизация размера | ❌ Сложнее конфигурация |
-| **Локальный запуск** | ✅ Быстрая разработка<br>✅ Удобная отладка<br>✅ Полный контроль | ❌ Требует локальной JDK/Maven |
-
-## 🔧 Конфигурация
-
-### Переменные окружения
-
-**market-app:**
-- `SPRING_DATASOURCE_URL` - URL подключения к H2
-- `SPRING_REDIS_HOST` - хост Redis
-- `PAYMENT_SERVICE_URL` - URL сервиса платежей
-
-**payment-service:**
-- `SPRING_DATASOURCE_URL` - URL подключения к H2
-- `payment.initial.balance` - начальный баланс (1,000,000.00)
-
-### Порты
-
-| Сервис | Внутренний порт | Внешний порт |
-|--------|----------------|--------------|
-| market-app | 8080 | 8080 |
-| payment-service | 8081 | 8081 |
-| market-db | 9092 | 9092 |
-| payment-db | 9092 | 9093 |
-| market-redis | 6379 | 6379 |
-
-## 🗂️ Тома данных
-
-- `market-data` - данные H2 для market-app
-- `payment-data` - данные H2 для payment-service  
-- `market-redis-data` - данные Redis
+- **market-app**: защищенные эндпоинты `/cart/**`, `/orders/**`
+- **payment-service**: все эндпоинты защищены OAuth2
+- **Межсервисное взаимодействие**: только с валидными JWT токенами
 
 ## 🌐 Доступ к сервисам
 
 После запуска:
 
 - **Основное приложение**: http://localhost:8080
-- **Сервис платежей**: http://localhost:8081
+  - Пользователь: `test_user`
+  - Пароль: `password`
+- **Сервис платежей**: http://localhost:8081 (только через OAuth2)
+- **Keycloak Admin Console**: http://localhost:8082/admin
+  - Пользователь: `admin`
+  - Пароль: `admin`
+- **Keycloak Account Console**: http://localhost:8082/realms/my-market/account
 - **H2 Console (market)**: http://localhost:9092
 - **H2 Console (payment)**: http://localhost:9093
-- **Redis**: localhost:6379
+
+## 📂 Структура проекта
+
+```
+my-market-app/
+├── docker-compose.yml              # Основная конфигурация всех сервисов
+├── Dockerfile                      # Multi-stage build для production
+├── realm-export.json               # Конфигурация Keycloak realm
+├── market-app/                     # Основное приложение
+│   ├── src/main/java/
+│   │   └── com/iron/mymarket/
+│   │       ├── controller/          # REST контроллеры
+│   │       ├── service/           # Бизнес-логика
+│   │       ├── configuration/     # Конфигурация безопасности
+│   │       └── security/          # OAuth2 настройки
+│   └── src/test/                   # Тесты безопасности
+├── payment-service/                # Сервис платежей
+│   ├── src/main/java/
+│   │   └── com/iron/
+│   │       ├── controller/          # REST API
+│   │       ├── service/           # Логика платежей
+│   │       └── configuration/     # OAuth2 resource server
+│   └── src/test/                   # Тесты OAuth2 защиты
+└── payment-api/                     # OpenAPI спецификация
+    └── src/main/resources/
+        └── openapi/
+            └── payment-api.yaml   # API спецификация
+```
+
+## 🔧 Конфигурация
+
+### 🌍 Переменные окружения
+
+**market-app:**
+- `SPRING_DATASOURCE_URL` - URL подключения к H2
+- `SPRING_REDIS_HOST` - хост Redis
+- `PAYMENT_SERVICE_URL` - URL сервиса платежей
+- `SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI` - URL Keycloak
+
+**payment-service:**
+- `SPRING_DATASOURCE_URL` - URL подключения к H2
+- `payment.initial.balance` - начальный баланс
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` - URL Keycloak
+
+### 📋 Порты
+
+| Сервис | Внутренний порт | Внешний порт |
+|--------|----------------|--------------|
+| market-app | 8080 | 8080 |
+| payment-service | 8081 | 8081 |
+| keycloak | 8080 | 8082 |
+| market-db | 9092 | 9092 |
+| payment-db | 9093 | 9093 |
+| market-redis | 6379 | 6379 |
+
+## 🗂️ Тома данных
+
+- `market-data` - данные H2 для market-app
+- `payment-data` - данные H2 для payment-service
+- `market-redis-data` - данные Redis
 
 ## 📝 Полезные команды
 
 ```bash
-# Пересборка и запуск
+# Полная пересборка и запуск
 docker-compose up --build -d
 
 # Запуск только определенных сервисов
-docker-compose up -d market-app market-redis
+docker-compose up -d market-app keycloak
 
 # Просмотр логов конкретного сервиса
 docker-compose logs -f market-app
+docker-compose logs -f keycloak
 
 # Вход в контейнер
 docker-compose exec market-app bash
+docker-compose exec keycloak bash
 
 # Очистка томов и контейнеров
 docker-compose down -v
+
+# Перезагрузка Keycloak с новой конфигурацией
+docker-compose restart keycloak
 ```
 
-## 🐛 Отладка
+## 🧪 Тестирование безопасности
 
-### Просмотр логов
+### 🔐 Тесты OAuth2
+
+Проект включает комплексные тесты безопасности:
+
+- **market-app**: тесты конфигурации безопасности и OAuth2 аутентификации
+- **payment-service**: тесты защиты эндпоинтов через OAuth2
+- **Интеграционные тесты**: проверка взаимодействия сервисов
+
 ```bash
-# Все логи
-docker-compose logs
-
-# Логи конкретного сервиса
-docker-compose logs market-app
-docker-compose logs payment-service
+# Запуск тестов безопасности
+./mvnw test -pl market-app -Dtest=SecurityConfigTest
+./mvnw test -pl market-app -Dtest=OAuth2AuthenticationTest
+./mvnw test -pl payment-service -Dtest=PaymentControllerTest
 ```
 
-### Проверка здоровья сервисов
+### 🛡️ Проверка защиты
+
 ```bash
-# Проверка доступности
+# Попытка доступа без токена (должен вернуть 401)
+curl http://localhost:8081/payments/balance
+
+# Доступ к защищенным эндпоинтам market-app (требует авторизации)
+curl http://localhost:8080/cart/items
+```
+
+## 🐛 Отладка и мониторинг
+
+### 📊 Health Checks
+
+```bash
+# Проверка здоровья сервисов
 curl http://localhost:8080/actuator/health
 curl http://localhost:8081/actuator/health
 
-# Проверка сервиса платежей
-curl http://localhost:8081/api/balance
+# Проверка доступности Keycloak
+curl http://localhost:8082/realms/my-market/.well-known/openid_configuration
 ```
 
-### Базы данных
-- **H2 Console**: http://localhost:9092 (JDBC URL: `jdbc:h2:tcp://localhost/market`)
-- **H2 Console Payment**: http://localhost:9093 (JDBC URL: `jdbc:h2:tcp://localhost/payment`)
+### 🔍 Логи
+
+```bash
+# Логи конкретного сервиса
+docker-compose logs -f market-app
+docker-compose logs -f payment-service
+docker-compose logs -f keycloak
+
+# Все логи
+docker-compose logs
+```
+
+### 🗄️ Базы данных
+
+- **H2 Console (market)**: http://localhost:9092 (JDBC URL: `jdbc:h2:tcp://localhost/market`)
+- **H2 Console (payment)**: http://localhost:9093 (JDBC URL: `jdbc:h2:tcp://localhost/payment`)
+- **Keycloak Admin**: http://localhost:8082/admin (admin/admin)
 
 ## ⚠️ Важные замечания
 
-1. **Первый запуск** может занять время из-за сборки образов
-2. **Порядок запуска**: базы данных запускаются первыми
-3. **Перезапуск кода**: используйте `docker-compose up --build` для пересборки
-4. **Логи**: все логи пишутся в директорию `./logs` на хосте
-5. **Профиль**: используется `docker` профиль для конфигурации
+1. **Обязательная зависимость**: Keycloak должен быть запущен перед другими сервисами
+2. **Файл .env**: необходимо создать в корне проекта с `KC_CLIENT_SECRET` перед запуском
+3. **Первый запуск**: может занять 5-10 минут из-за инициализации Keycloak
+4. **OAuth2 токены**: имеют ограниченное время жизни (1 час по умолчанию)
+5. **Безопасность**: все межсервисные взаимодействия защищены OAuth2
+6. **Данные**: сохраняются в Docker томах при перезапуске
 
-## 🔒 Безопасность
+## 🏗️ Разработка
 
-В продакшн среде рекомендуется:
-- Изменить пароли по умолчанию
-- Ограничить доступ к H2 console
-- Использовать HTTPS
-- Настроить сети Docker
+### 📋 Требования
 
----
+- Docker и Docker Compose
+- Не менее 4GB RAM для всех сервисов
+- Свободные порты: 8080, 8081, 8082, 9092, 9093, 5432, 6379
 
-## 💻 Разработка проекта
+### 🔧 Изменение конфигурации Keycloak
 
-### 📂 Структура проекта
-
-```
-my-market-app/
-├── pom.xml                           # Корневой Maven файл
-├── market-app/                        # Основное приложение
-│   ├── pom.xml                       # Maven конфигурация
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/iron/mymarket/
-│   │   │   │   ├── controller/          # Контроллеры
-│   │   │   │   ├── CartController.java
-│   │   │   │   ├── ItemsController.java
-│   │   │   │   └── OrdersController.java
-│   │   │   ├── service/              # Сервисы
-│   │   │   │   ├── CartService.java
-│   │   │   │   ├── OrderService.java
-│   │   │   │   ├── PaymentClientService.java
-│   │   │   │   └── PaymentHealthService.java
-│   │   │   ├── dao/                  # Доступ к данным
-│   │   │   │   └── repository/
-│   │   │   └── resources/
-│   │   │       ├── application.properties
-│   │   │       └── templates/          # Thymeleaf шаблоны
-│   │   └── test/                    # Тесты
-│   └── Dockerfile
-└── payment-service/                   # Сервис платежей
-    ├── pom.xml
-    ├── src/
-    │   ├── main/
-    │   │   └── java/com/iron/payment/
-    │   │       ├── PaymentController.java
-    │   │       ├── PaymentService.java
-    │   │       └── model/
-    │   └── test/
-    └── Dockerfile
-```
-
-### 🔨 Сборка мультипроекта
-
-```bash
-# Сборка всего проекта
-./mvnw clean install
-
-# Сборка только market-app
-./mvnw clean install -pl market-app
-
-# Сборка только payment-service  
-./mvnw clean install -pl payment-service
-
-# Сборка с пропуском тестов
-./mvnw clean install -DskipTests
-
-# Генерация OpenAPI клиента для market-app
-./mvnw generate-sources -pl market-app
-```
-
-### 🧪 Запуск тестов
-
-```bash
-# Запуск всех тестов
-./mvnw test
-
-# Тесты только market-app
-./mvnw test -pl market-app
-
-# Тесты только payment-service
-./mvnw test -pl payment-service
-
-# Запуск конкретного теста
-./mvnw test -pl market-app -Dtest=CartControllerTest
-
-# Запуск с покрытием
-./mvnw test jacoco:report -pl market-app
-```
-
-### 🚀 Локальный запуск
-
-#### Запуск основных сервисов
-
-```bash
-# Запуск payment-service (порт 8081)
-cd payment-service
-../mvnw spring-boot:run
-
-# Запуск market-app (порт 8080) в другом терминале
-cd market-app  
-../mvnw spring-boot:run
-```
-
-#### Запуск с Redis
-
-```bash
-# Запуск Redis через Docker
-docker run -d --name redis -p 6379:6379 redis:7-alpine
-
-# Или через системный Redis (если установлен)
-redis-server
-```
-
-#### Конфигурация для локальной разработки
-
-**market-app/application.properties:**
-```properties
-# База данных H2
-spring.datasource.url=jdbc:h2:mem:market;DB_CLOSE_DELAY=-1
-spring.datasource.username=sa
-spring.datasource.password=password
-
-# Redis (если запущен локально)
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
-
-# Сервис платежей
-payment.service.url=http://localhost:8081
-```
-
-**payment-service/application.properties:**
-```properties
-# База данных H2
-spring.datasource.url=jdbc:h2:mem:payment;DB_CLOSE_DELAY=-1
-spring.datasource.username=sa
-spring.datasource.password=password
-
-# Начальный баланс
-payment.initial.balance=1000.00
-```
-
-### 🌐 Использование проекта
-
-#### Основные эндпоинты
-
-**market-app (http://localhost:8080):**
-- `GET /` - главная страница с товарами
-- `GET /items` - каталог товаров (JSON API)
-- `GET /cart/items` - корзина пользователя
-- `POST /cart/items` - изменение количества товаров
-- `POST /buy` - оформление заказа
-- `GET /orders` - список заказов
-- `GET /orders/{id}` - детализация заказа
-
-**payment-service (http://localhost:8081):**
-- `GET /api/balance` - текущий баланс
-- `POST /api/pay` - выполнение платежа
-- `GET /actuator/health` - проверка здоровья
-
-#### Примеры использования
-
-```bash
-# Получить каталог товаров
-curl http://localhost:8080/items
-
-# Добавить товар в корзину (через web интерфейс)
-# Открыть http://localhost:8080 и добавить товары
-
-# Оформить заказ
-curl -X POST http://localhost:8080/buy \
-  -H "Content-Type: application/x-www-form-urlencoded"
-
-# Проверить баланс
-curl http://localhost:8081/api/balance
-
-# Выполнить платеж
-curl -X POST http://localhost:8081/api/pay \
-  -H "Content-Type: application/json" \
-  -d '{"amount": 100.00}'
-```
-
-### 🔧 Полезные команды разработки
-
-```bash
-# Очистка и пересборка
-./mvnw clean compile
-
-# Форматирование кода (если настроено)
-./mvnw spotless:apply
-
-# Проверка зависимостей
-./mvnw dependency:tree
-
-# Анализ кода
-./mvnw sonar:sonar
-
-# Создание дистрибутива
-./mvnw clean package
-```
-
-### 🐛 Отладка
-
-#### IDE Configuration
-- **IntelliJ IDEA**: Import as Maven Project
-- **VS Code**: Maven for Java extension
-- **Eclipse**: Import as Existing Maven Project
-
-#### Health Checks
-```bash
-# Проверка доступности сервисов
-curl http://localhost:8080/actuator/health
-curl http://localhost:8081/actuator/health
-
-# Проверка Redis
-redis-cli ping
-```
-
-#### Логи
-```bash
-# Просмотр логов Spring Boot
-tail -f market-app/logs/spring.log
-
-# Логи в реальном времени
-./mvnw spring-boot:run | grep DEBUG
-```
-
-### 📊 Мониторинг
-
-#### Actuator Endpoints
-- `/actuator/health` - здоровье приложения
-- `/actuator/info` - информация о приложении  
-- `/actuator/metrics` - метрики производительности
-- `/actuator/env` - переменные окружения
-
-#### Базы данных
-- **H2 Console**: http://localhost:8080/h2-console (market-app)
-- **H2 Console**: http://localhost:8081/h2-console (payment-service)
-
-### 🚀 Продакшн развертывание
-
-```bash
-# Сборка Docker образов
-docker build -t market-app:latest ./market-app
-docker build -t payment-service:latest ./payment-service
-
-```
+1. Измените `realm-export.json`
+2. Выполните: `docker-compose restart keycloak`
+3. Импортируйте новую конфигурацию в Keycloak Admin Console
 
 ### 📚 Дополнительные ресурсы
 
-- **Spring Boot Documentation**: https://docs.spring.io/spring-boot/
-- **Spring WebFlux Guide**: https://spring.io/guides/gs/reactive-rest-service/
-- **Docker Compose Reference**: https://docs.docker.com/compose/
-- **H2 Database**: http://www.h2database.com/html/main.html
-- **Redis Documentation**: https://redis.io/documentation
+- **Keycloak Documentation**: https://www.keycloak.org/documentation
+- **Spring Security OAuth2**: https://spring.io/guides/gs/securing-web/
+- **Spring WebFlux**: https://spring.io/guides/gs/reactive-rest-service/
+- **Docker Compose**: https://docs.docker.com/compose/
+- **OpenAPI Specification**: https://swagger.io/specification/
